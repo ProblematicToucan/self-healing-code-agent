@@ -32,6 +32,8 @@ ENV GIT_AUTHOR_NAME=
 ENV GIT_AUTHOR_EMAIL=
 ENV GIT_COMMITTER_NAME=
 ENV GIT_COMMITTER_EMAIL=
+# HTTPS clone of private repos: use in URL as https://oauth2:${GIT_TOKEN}@host/path
+ENV GIT_TOKEN=
 
 # Cursor agent CLI (for agent tooling inside the container)
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
