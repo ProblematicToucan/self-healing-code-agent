@@ -1,4 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
+import { z } from 'zod';
 import { errorReportSchema } from './schemas/errorReport';
 import { handleError } from './utils/errorHandler';
 
@@ -34,7 +35,7 @@ app.post(
     if (!result.success) {
       res.status(400).json({
         error: 'Validation failed',
-        details: result.error.flatten(),
+        details: z.flattenError(result.error),
       });
       return;
     }
