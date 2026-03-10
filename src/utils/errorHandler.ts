@@ -98,7 +98,6 @@ function runAgentStep(cloneDir: string, step: keyof typeof STEP_PROMPTS): boolea
   const r = spawnSync(AGENT_CMD, ['-f', '-p', prompt], {
     cwd: cloneDir,
     stdio: 'inherit',
-    shell: true,
     encoding: 'utf8',
   });
   if (r.status !== 0) {
