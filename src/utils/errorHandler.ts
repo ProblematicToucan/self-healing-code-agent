@@ -39,10 +39,11 @@ function getCloneDir(source: string): string {
   return path.join(workspaceRoot, `${slug}-${timestamp}`);
 }
 
-/** Run git clone; on failure log and return null. */
-function cloneRepo(source: string, cloneDir: string): boolean {
+/** Run git clone for the given branch. On failure (e.g. branch missing) log and return false. */
+function cloneRepo(source: string, cloneDir: string, branch: string): boolean {
   mkdirSync(path.dirname(cloneDir), { recursive: true });
-  const r = spawnSync('git', ['clone', source, cloneDir], {
+  const args = ['clone', '-b', branch.trim(), source, cloneDir];
+  const r = spawnSync('git', args, {
     encoding: 'utf8',
     timeout: CLONE_TIMEOUT_MS,
   });
@@ -110,17 +111,20 @@ function runAgentStep(cloneDir: string, step: keyof typeof STEP_PROMPTS): boolea
 /**
  * Run the self-healing pipeline: clone repo, write error context, then run agent steps
  * (install deps → investigate → fix → commit/push/PR) with cwd = clone.
- * Requires report.source. On any failure, log and stop; clone is left for debugging.
+ * Requires report.source and report.branch. Clones the given branch; if the branch does not exist, clone fails.
+ * On any failure, log and reject so the job is marked failed; clone is left for debugging.
  */
 export async function runPipeline(report: ErrorReport): Promise<void> {
   const source = report.source;
   if (!source?.trim()) {
     console.error('[pipeline] source is required');
-    return;
+    throw new Error('source is required');
   }
 
   const cloneDir = getCloneDir(source);
-  if (!cloneRepo(source, cloneDir)) return;
+  if (!cloneRepo(source, cloneDir, report.branch)) {
+    throw new Error(`git clone failed (branch "${report.branch}" may not exist)`);
+  }
 
   writeErrorContext(cloneDir, report);
 
@@ -129,7 +133,9 @@ export async function runPipeline(report: ErrorReport): Promise<void> {
     if (step === 'commitPushPr') {
       cleanupErrorContext(cloneDir);
     }
-    if (!runAgentStep(cloneDir, step)) return;
+    if (!runAgentStep(cloneDir, step)) {
+      throw new Error(`Pipeline step "${step}" failed`);
+    }
   }
 }
 
