@@ -1,4 +1,5 @@
-import express, {type NextFunction , type Request, type Response, } from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
+import { errorReportSchema } from './schemas/errorReport';
 import { handleError } from './utils/errorHandler';
 
 const app = express();
@@ -23,6 +24,25 @@ app.get(
   '/health',
   asyncHandler(async (_req: Request, res: Response) => {
     res.json({ status: 'ok' });
+  })
+);
+
+app.post(
+  '/error',
+  asyncHandler(async (req: Request, res: Response) => {
+    const result = errorReportSchema.safeParse(req.body);
+    if (!result.success) {
+      res.status(400).json({
+        error: 'Validation failed',
+        details: result.error.flatten(),
+      });
+      return;
+    }
+    const { message, stack } = result.data;
+    const error = new Error(message);
+    if (stack) error.stack = stack;
+    handleError(error);
+    res.status(202).json({ accepted: true });
   })
 );
 
