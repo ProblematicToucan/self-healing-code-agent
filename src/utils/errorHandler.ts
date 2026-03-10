@@ -10,7 +10,7 @@ const CLONE_TIMEOUT_MS = 60_000;
 
 const STEP_PROMPTS = {
   install:
-    'Install project dependencies (npm install, yarn, pnpm, etc.) so the project is ready to run.',
+    'Install project dependencies (npm install, yarn, pnpm, uv sync, etc.) so the project is ready to run.',
   investigate:
     'Read error-context.md in this repo. Investigate the error and identify the cause.',
   fix: 'Using your investigation, fix the error. Apply code changes in this repo.',
