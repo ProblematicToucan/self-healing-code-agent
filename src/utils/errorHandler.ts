@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ErrorReport } from '../schemas/errorReport';
 
@@ -53,7 +53,9 @@ function cloneRepo(source: string, cloneDir: string): boolean {
   return true;
 }
 
-/** Write error context file inside the clone. */
+const GITIGNORE_ENTRY = `\n# Self-healing pipeline (do not commit)\n${ERROR_CONTEXT_FILE}\n`;
+
+/** Write error context file inside the clone and add to clone's .gitignore so it is not committed. */
 function writeErrorContext(cloneDir: string, report: ErrorReport): void {
   const lines: string[] = [
     '# Error context',
@@ -68,6 +70,26 @@ function writeErrorContext(cloneDir: string, report: ErrorReport): void {
   ].filter(Boolean);
   const filePath = path.join(cloneDir, ERROR_CONTEXT_FILE);
   writeFileSync(filePath, lines.join('\n'), 'utf8');
+
+  const gitignorePath = path.join(cloneDir, '.gitignore');
+  try {
+    const existing = readFileSync(gitignorePath, 'utf8');
+    if (!existing.includes(ERROR_CONTEXT_FILE)) {
+      appendFileSync(gitignorePath, GITIGNORE_ENTRY, 'utf8');
+    }
+  } catch {
+    // No .gitignore in clone; cleanupErrorContext before commit will remove the file so it is not committed
+  }
+}
+
+/** Remove error context file from the clone before commit step so it is never included in the commit. */
+function cleanupErrorContext(cloneDir: string): void {
+  const filePath = path.join(cloneDir, ERROR_CONTEXT_FILE);
+  try {
+    unlinkSync(filePath);
+  } catch {
+    // Ignore if already missing
+  }
 }
 
 /** Run one agent step; return true on success. */
@@ -105,6 +127,9 @@ export async function runPipeline(report: ErrorReport): Promise<void> {
 
   const steps: (keyof typeof STEP_PROMPTS)[] = ['install', 'investigate', 'fix', 'commitPushPr'];
   for (const step of steps) {
+    if (step === 'commitPushPr') {
+      cleanupErrorContext(cloneDir);
+    }
     if (!runAgentStep(cloneDir, step)) return;
   }
 }
