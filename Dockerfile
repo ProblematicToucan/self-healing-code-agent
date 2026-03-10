@@ -27,6 +27,12 @@ ENV PORT=3000
 # Pass at runtime: -e CURSOR_API_KEY=... or via compose
 ENV CURSOR_API_KEY=
 
+# Git identity (used when committing from inside container). Override at runtime if needed.
+ENV GIT_AUTHOR_NAME=
+ENV GIT_AUTHOR_EMAIL=
+ENV GIT_COMMITTER_NAME=
+ENV GIT_COMMITTER_EMAIL=
+
 # Cursor agent CLI (for agent tooling inside the container)
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && curl https://cursor.com/install -fsS | bash \

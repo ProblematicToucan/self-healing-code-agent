@@ -7,6 +7,10 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - CURSOR_API_KEY=${CURSOR_API_KEY:-}
+      - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-}
+      - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-}
+      - GIT_COMMITTER_NAME=${GIT_COMMITTER_NAME:-}
+      - GIT_COMMITTER_EMAIL=${GIT_COMMITTER_EMAIL:-}
     volumes:
       # Persist SQLite DB and data dir
       - app-data:/app/data
