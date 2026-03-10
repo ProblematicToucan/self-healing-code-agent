@@ -32,7 +32,7 @@ ENV GIT_AUTHOR_NAME=
 ENV GIT_AUTHOR_EMAIL=
 ENV GIT_COMMITTER_NAME=
 ENV GIT_COMMITTER_EMAIL=
-# HTTPS clone of private repos: use in URL as https://oauth2:${GIT_TOKEN}@host/path
+# GitHub (or other) PAT for clone/push from inside container. Entrypoint configures Git credential helper when set.
 ENV GIT_TOKEN=
 
 # Cursor agent CLI and git for pipeline clone; ca-certificates for Git HTTPS (SSL verify)
@@ -49,6 +49,11 @@ COPY --from=builder /app/dist ./dist
 # App writes SQLite DB to ./data and clones repos into ./workspace
 RUN mkdir -p /app/data /app/workspace
 
+# Git credential helper + entrypoint so clone/push use GIT_TOKEN without prompts
+COPY entrypoint.sh git-credential-helper.sh /app/
+RUN chmod +x /app/entrypoint.sh /app/git-credential-helper.sh
+
 EXPOSE 3000
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["node", "dist/index.js"]
