@@ -15,7 +15,7 @@ const STEP_PROMPTS = {
     'Read error-context.md in this repo. Investigate the error and identify the cause.',
   fix: 'Using your investigation, fix the error. Apply code changes in this repo.',
   commitPushPr:
-    'Create a new branch, commit your changes, push the branch, and open a pull request.',
+    'Create a new branch with a descriptive name related to the issue (e.g. fix/sqlite-connection-error, fix/timeout-handling). Commit your changes, push the branch, and open a pull request.',
 } as const;
 
 /** Derive a fs-safe slug from source URL/path (e.g. last path segment, sanitized). */
