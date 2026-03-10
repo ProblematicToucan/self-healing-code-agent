@@ -102,7 +102,13 @@ function runAgentStep(cloneDir: string, step: keyof typeof STEP_PROMPTS): boolea
     encoding: 'utf8',
   });
   if (r.status !== 0) {
-    console.error(`[pipeline] Agent step "${step}" failed with exit code ${r.status}`);
+    const detail =
+      r.signal != null
+        ? `killed by signal ${r.signal}`
+        : r.error != null
+          ? `spawn failed: ${r.error.message}`
+          : `exit code ${r.status}`;
+    console.error(`[pipeline] Agent step "${step}" failed: ${detail}`);
     return false;
   }
   return true;

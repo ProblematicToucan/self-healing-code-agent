@@ -35,21 +35,20 @@ ENV GIT_COMMITTER_EMAIL=
 # HTTPS clone of private repos: use in URL as https://oauth2:${GIT_TOKEN}@host/path
 ENV GIT_TOKEN=
 
-# Cursor agent CLI, gosu for entrypoint, git for pipeline clone
-RUN apt-get update && apt-get install -y --no-install-recommends curl gosu git \
+# Cursor agent CLI and git for pipeline clone; ca-certificates for Git HTTPS (SSL verify)
+# Install leaves agent in /root/.local/bin; run as root so agent is on PATH and finds its files
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git \
     && curl https://cursor.com/install -fsS | bash \
     && rm -rf /var/lib/apt/lists/*
+ENV PATH="/root/.local/bin:${PATH}"
 
 COPY package.json package-lock.json* ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
-# App writes SQLite DB to ./data and clones repos into ./workspace (entrypoint chowns so node can write)
+# App writes SQLite DB to ./data and clones repos into ./workspace
 RUN mkdir -p /app/data /app/workspace
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 3000
 
-ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["node", "dist/index.js"]
