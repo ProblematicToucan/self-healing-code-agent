@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.git/
+.env
+*.log
+.DS_Store
+workspace/
+data/
+*.db
+.cursor/
+*.plan.md
+Dockerfile*
+.dockerignore

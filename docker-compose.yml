@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - CURSOR_API_KEY=${CURSOR_API_KEY:-}
+    volumes:
+      # Persist SQLite DB and data dir
+      - app-data:/app/data
+
+volumes:
+  app-data:
