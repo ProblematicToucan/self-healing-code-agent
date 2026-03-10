@@ -45,7 +45,10 @@ app.post(
       });
       return;
     }
-    void runPipeline(result.data);
+    const report = result.data;
+    setImmediate(() => {
+      void runPipeline(report);
+    });
     res.status(202).json({ accepted: true });
   })
 );
