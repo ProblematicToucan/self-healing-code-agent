@@ -24,6 +24,7 @@ app.get(
 app.get(
   '/health',
   asyncHandler(async (_req: Request, res: Response) => {
+    throw new Error('test error');
     res.json({ status: 'ok' });
   })
 );
