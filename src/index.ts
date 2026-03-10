@@ -1,7 +1,10 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
+import { claimNext, enqueue, setStatus } from './queue/db';
 import { errorReportSchema } from './schemas/errorReport';
 import { handleError, runPipeline } from './utils/errorHandler';
+
+const POLL_INTERVAL_MS = 1500;
 
 const app = express();
 const port = process.env.PORT ?? 3000;
@@ -45,11 +48,8 @@ app.post(
       });
       return;
     }
-    const report = result.data;
-    setImmediate(() => {
-      void runPipeline(report);
-    });
-    res.status(202).json({ accepted: true });
+    const jobId = enqueue(result.data);
+    res.status(202).json({ accepted: true, jobId });
   })
 );
 
@@ -58,6 +58,19 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
+function runWorkerLoop(): void {
+  const job = claimNext();
+  if (!job) {
+    setTimeout(runWorkerLoop, POLL_INTERVAL_MS);
+    return;
+  }
+  runPipeline(job.report)
+    .then(() => setStatus(job.id, 'done'))
+    .catch(() => setStatus(job.id, 'failed'))
+    .finally(() => runWorkerLoop());
+}
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
+  runWorkerLoop();
 });
