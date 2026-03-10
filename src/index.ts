@@ -1,7 +1,7 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { errorReportSchema } from './schemas/errorReport';
-import { handleError } from './utils/errorHandler';
+import { handleError, runPipeline } from './utils/errorHandler';
 
 const app = express();
 const port = process.env.PORT ?? 3000;
@@ -39,10 +39,13 @@ app.post(
       });
       return;
     }
-    const { message, stack } = result.data;
-    const error = new Error(message);
-    if (stack) error.stack = stack;
-    handleError(error);
+    if (!result.data.source?.trim()) {
+      res.status(400).json({
+        error: 'source is required for self-healing pipeline',
+      });
+      return;
+    }
+    void runPipeline(result.data);
     res.status(202).json({ accepted: true });
   })
 );
