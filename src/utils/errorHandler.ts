@@ -96,7 +96,7 @@ function cleanupErrorContext(cloneDir: string): void {
 /** Run one agent step; return true on success. */
 function runAgentStep(cloneDir: string, step: keyof typeof STEP_PROMPTS): boolean {
   const prompt = STEP_PROMPTS[step];
-  const r = spawnSync(AGENT_CMD, ['-f', '-p', prompt], {
+  const r = spawnSync(AGENT_CMD, ['--model', 'auto', '-f', '-p', prompt], {
     cwd: cloneDir,
     stdio: 'inherit',
     encoding: 'utf8',
