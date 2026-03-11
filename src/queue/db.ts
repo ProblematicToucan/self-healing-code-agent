@@ -3,6 +3,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import type { ErrorReport } from '../schemas/errorReport';
 import { errorReportFingerprint } from '../utils/fingerprint';
+import { logger } from '../utils/logger';
 
 const DB_DIR = path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DB_DIR, 'queue.db');
@@ -58,6 +59,22 @@ export function enqueue(report: ErrorReport): number {
   );
   const result = stmt.run(JSON.stringify(report), t, t, fingerprint);
   return result.lastInsertRowid as number;
+}
+
+/**
+ * Reclaim ALL rows in `processing` on startup (service just started = any processing was abandoned).
+ * Call once when the worker starts.
+ */
+export function reclaimAbandonedOnStartup(): void {
+  const database = getDb();
+  const result = database
+    .prepare(
+      `UPDATE error_jobs SET status = 'pending', started_at = NULL, updated_at = ? WHERE status = 'processing'`
+    )
+    .run(now());
+  if (result.changes > 0) {
+    logger.info('reclaimed abandoned jobs on startup', { count: result.changes });
+  }
 }
 
 /**

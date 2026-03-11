@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { claimNext, enqueue, setStatus } from './queue/db';
+import { claimNext, enqueue, reclaimAbandonedOnStartup, setStatus } from './queue/db';
 import { errorReportSchema } from './schemas/errorReport';
 import { handleError, runPipeline } from './utils/errorHandler';
 import { logger } from './utils/logger';
@@ -98,6 +98,7 @@ function runWorkerLoop(): void {
 }
 
 app.listen(port, () => {
+  reclaimAbandonedOnStartup();
   logger.info('server started', {
     pid: process.pid,
     nodeVersion: process.version,
