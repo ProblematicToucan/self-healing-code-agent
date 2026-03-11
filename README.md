@@ -7,8 +7,9 @@ An Express + TypeScript API that accepts error reports and runs an automated sel
 ## Features
 
 - **POST /error** — Submit error reports (message, stack, source URL, branch). Returns `202` with a job ID for async processing.
-- **SQLite job queue** — Durable, in-process queue. Jobs survive restarts. Duplicate reports (same fingerprint) are deduplicated.
+- **SQLite job queue** — Durable, in-process queue. Jobs survive restarts. Duplicate reports (same fingerprint) are deduplicated. Stale jobs (processing > 10 min) are auto-reclaimed.
 - **Self-healing pipeline** — For each job: clone repo → install deps → investigate → fix → commit & push → open PR (via Cursor agent CLI).
+- **Queue inspection** — `GET /queue` lists jobs with stats and optional status filter. `POST /queue/trigger` manually kicks the worker.
 
 ## Requirements
 
@@ -36,11 +37,13 @@ npm start
 
 ## API
 
-| Method | Path     | Description                        |
-|--------|----------|------------------------------------|
-| GET    | `/`      | Health-style hello                 |
-| GET    | `/health`| Health check (`{ status: "ok" }`)  |
-| POST   | `/error` | Submit an error report             |
+| Method | Path            | Description                                   |
+|--------|-----------------|-----------------------------------------------|
+| GET    | `/`             | Health-style hello                            |
+| GET    | `/health`       | Health check (`{ status: "ok" }`)            |
+| POST   | `/error`        | Submit an error report                        |
+| GET    | `/queue`        | Queue stats + list jobs (`?limit=50&status=pending`) |
+| POST   | `/queue/trigger`| Manually trigger worker to process next job   |
 
 ### POST /error
 
@@ -61,6 +64,18 @@ npm start
 
 **Response:** `202 Accepted` with `{ accepted: true, jobId: number }`.
 
+### GET /queue
+
+Query params: `limit` (default 50, max 200), `status` (optional: `pending`, `processing`, `done`, `failed`).
+
+**Response:** `{ stats: { pending, processing, done, failed, total }, finished: boolean, jobs: [...] }`.
+
+### POST /queue/trigger
+
+Kicks the worker loop immediately (useful when queue has pending work but worker is idle).
+
+**Response:** `{ triggered: boolean, message: string, stats }`.
+
 ## Environment Variables
 
 See [.env.example](.env.example) for all options. Key variables:
@@ -69,7 +84,7 @@ See [.env.example](.env.example) for all options. Key variables:
 - `NODE_ENV` — `development` or `production`
 - `LOG_LEVEL` — `debug`, `info`, `warn`, `error` (default `info`)
 
-For Docker: `CURSOR_API_KEY`, `GIT_TOKEN`, and Git identity vars for the pipeline.
+For Docker/pipeline: `CURSOR_API_KEY`, `GIT_TOKEN`, `GIT_URL` (optional; custom Git host), and `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` / `GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL`.
 
 ## Docker
 
@@ -81,21 +96,29 @@ docker build -t self-healing-code .
 docker run -p 3000:3000 \
   -e CURSOR_API_KEY=your-key \
   -e GIT_TOKEN=ghp_xxx \
+  -v self-healing-data:/app/data \
   self-healing-code
 ```
 
-The container includes Cursor agent CLI and Git. Jobs clone repos into `workspace/` and the queue DB is at `data/queue.db`.
+**With docker-compose** (recommended; persists queue DB automatically):
+
+```bash
+docker compose up -d
+# Set CURSOR_API_KEY, GIT_TOKEN, GIT_AUTHOR_* via .env or -e
+```
+
+The container includes Cursor agent CLI, Git, GitHub CLI (`gh`), and GitLab CLI (`glab`). Jobs clone repos into `workspace/` and the queue DB is at `data/queue.db`.
 
 ## Project Structure
 
 ```
 src/
-├── index.ts          # Express app, routes, worker loop
-├── queue/db.ts       # SQLite queue (enqueue, claimNext, setStatus)
+├── index.ts          # Express app, routes, worker loop, /queue endpoints
+├── queue/db.ts       # SQLite queue (enqueue, claimNext, setStatus, listQueueJobs, getQueueStats)
 ├── schemas/errorReport.ts
 └── utils/
     ├── errorHandler.ts  # Pipeline (clone, agent steps) & handleError
-    ├── fingerprint.ts   # Deduplication fingerprint
+    ├── fingerprint.ts   # Deduplication fingerprint (message + stack + source + branch)
     └── logger.ts
 ```
 
