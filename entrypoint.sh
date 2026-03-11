@@ -13,8 +13,8 @@ if [ -n "$GIT_URL" ]; then
   # Strip http://, https://, and trailing slash to get just the hostname/port
   GIT_HOST_RAW=$(echo "$GIT_URL" | sed -e 's|^[^/]*//||' -e 's|/$||')
   
-  export GITLAB_HOST="$GIT_URL"
-  export GH_HOST="$GIT_URL"
+  export GITLAB_HOST="$GIT_HOST_RAW"
+  export GH_HOST="$GIT_HOST_RAW"
   
   if command -v glab >/dev/null 2>&1; then
     glab config set --global host "$GIT_HOST_RAW" >/dev/null 2>&1 || true

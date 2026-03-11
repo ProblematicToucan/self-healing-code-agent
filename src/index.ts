@@ -1,7 +1,14 @@
 import 'dotenv/config';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { claimNext, enqueue, reclaimAbandonedOnStartup, setStatus } from './queue/db';
+import {
+  claimNext,
+  enqueue,
+  getQueueStats,
+  listQueueJobs,
+  reclaimAbandonedOnStartup,
+  setStatus,
+} from './queue/db';
 import { errorReportSchema } from './schemas/errorReport';
 import { handleError, runPipeline } from './utils/errorHandler';
 import { logger } from './utils/logger';
@@ -48,6 +55,48 @@ app.get(
   '/health',
   asyncHandler(async (_req: Request, res: Response) => {
     res.json({ status: 'ok' });
+  })
+);
+
+app.get(
+  '/queue',
+  asyncHandler(async (req: Request, res: Response) => {
+    const stats = getQueueStats();
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const statusFilter = req.query.status as 'pending' | 'processing' | 'done' | 'failed' | undefined;
+    const jobs = listQueueJobs({
+      limit,
+      ...(statusFilter && ['pending', 'processing', 'done', 'failed'].includes(statusFilter)
+        ? { status: statusFilter }
+        : {}),
+    });
+    const finished = stats.pending === 0 && stats.processing === 0;
+    res.json({
+      stats,
+      finished,
+      jobs,
+    });
+  })
+);
+
+app.post(
+  '/queue/trigger',
+  asyncHandler(async (_req: Request, res: Response) => {
+    const stats = getQueueStats();
+    const hasWork = stats.pending > 0 || stats.processing > 0;
+    if (!hasWork) {
+      res.json({
+        triggered: false,
+        message: 'Queue is empty or already finished (no pending or processing jobs)',
+      });
+      return;
+    }
+    runWorkerLoop();
+    res.json({
+      triggered: true,
+      message: 'Worker triggered to process next job',
+      stats,
+    });
   })
 );
 

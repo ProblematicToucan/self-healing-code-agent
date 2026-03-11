@@ -123,3 +123,83 @@ export function setStatus(id: number, status: 'done' | 'failed'): void {
   const database = getDb();
   database.prepare(`UPDATE error_jobs SET status = ?, updated_at = ? WHERE id = ?`).run(status, now(), id);
 }
+
+export type QueueStats = {
+  pending: number;
+  processing: number;
+  done: number;
+  failed: number;
+  total: number;
+};
+
+export type QueueJobSummary = {
+  id: number;
+  status: string;
+  source: string | null;
+  created_at: string;
+  started_at: string | null;
+  updated_at: string;
+};
+
+/**
+ * Get counts per status. Queue is "finished" when pending === 0 && processing === 0.
+ */
+export function getQueueStats(): QueueStats {
+  const database = getDb();
+  const rows = database
+    .prepare(
+      `SELECT status, COUNT(*) as count FROM error_jobs GROUP BY status`
+    )
+    .all() as { status: string; count: number }[];
+  const stats: QueueStats = { pending: 0, processing: 0, done: 0, failed: 0, total: 0 };
+  for (const r of rows) {
+    stats[r.status as keyof Omit<QueueStats, 'total'>] = r.count;
+  }
+  stats.total = stats.pending + stats.processing + stats.done + stats.failed;
+  return stats;
+}
+
+/**
+ * List jobs ordered by created_at desc. Optionally filter by status.
+ */
+export function listQueueJobs(options?: {
+  limit?: number;
+  status?: 'pending' | 'processing' | 'done' | 'failed';
+}): QueueJobSummary[] {
+  const database = getDb();
+  const limit = Math.min(options?.limit ?? 50, 200);
+  const statusFilter = options?.status;
+  let sql = `SELECT id, payload, status, created_at, started_at, updated_at FROM error_jobs`;
+  const params: (number | string)[] = [];
+  if (statusFilter) {
+    sql += ` WHERE status = ?`;
+    params.push(statusFilter);
+  }
+  sql += ` ORDER BY created_at DESC LIMIT ?`;
+  params.push(limit);
+  const rows = database.prepare(sql).all(...params) as {
+    id: number;
+    payload: string;
+    status: string;
+    created_at: string;
+    started_at: string | null;
+    updated_at: string;
+  }[];
+  return rows.map((r) => {
+    let source: string | null = null;
+    try {
+      const payload = JSON.parse(r.payload) as { source?: string };
+      source = payload.source ?? null;
+    } catch {
+      // ignore
+    }
+    return {
+      id: r.id,
+      status: r.status,
+      source,
+      created_at: r.created_at,
+      started_at: r.started_at,
+      updated_at: r.updated_at,
+    };
+  });
+}
