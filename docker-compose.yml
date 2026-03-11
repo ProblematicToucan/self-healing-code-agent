@@ -12,6 +12,7 @@ services:
       - GIT_COMMITTER_NAME=${GIT_COMMITTER_NAME:-}
       - GIT_COMMITTER_EMAIL=${GIT_COMMITTER_EMAIL:-}
       - GIT_TOKEN=${GIT_TOKEN:-}
+      - GIT_URL=${GIT_URL:-}
     volumes:
       # Persist SQLite DB and data dir
       - app-data:/app/data
