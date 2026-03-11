@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { claimNext, enqueue, setStatus } from './queue/db';
