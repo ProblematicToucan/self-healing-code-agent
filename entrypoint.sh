@@ -1,5 +1,9 @@
 #!/bin/sh
 set -e
+
+# Install Cursor agent CLI at runtime (installs into /root/.local/bin, already on PATH)
+curl https://cursor.com/install -fsS | bash
+
 # If GIT_TOKEN is set, configure Git to use it for HTTPS (clone/push) so no prompts inside container.
 if [ -n "$GIT_TOKEN" ] && [ -x /app/git-credential-helper.sh ]; then
   git config --global credential.helper '/app/git-credential-helper.sh'
