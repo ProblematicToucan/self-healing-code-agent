@@ -31,8 +31,8 @@ describe('workspaceCleanup', () => {
   });
 
   describe('listWorkspaceEntries', () => {
-    it('returns [] when workspace dir does not exist', () => {
-      expect(listWorkspaceEntries()).toEqual([]);
+    it('throws when workspace dir does not exist', () => {
+      expect(() => listWorkspaceEntries()).toThrow();
     });
 
     it('returns [] when workspace dir is empty', () => {
@@ -45,14 +45,16 @@ describe('workspaceCleanup', () => {
       mkdirSync(workspaceRoot, { recursive: true });
       const subDir = path.join(workspaceRoot, 'my-repo-123');
       mkdirSync(subDir, { recursive: true });
-      const before = Date.now();
-      // ensure mtime is in the past (some fs only have 1s resolution)
       const ageSeconds = 120;
       writeFileSync(path.join(subDir, 'x'), '');
+      // listWorkspaceEntries uses directory mtime; set deterministic mtime for age assertion
+      const mtimeSec = (Date.now() - ageSeconds * 1000) / 1000;
+      utimesSync(subDir, mtimeSec, mtimeSec);
       const entries = listWorkspaceEntries();
       expect(entries).toHaveLength(1);
       expect(entries[0].name).toBe('my-repo-123');
-      expect(entries[0].ageSeconds).toBeGreaterThanOrEqual(0);
+      expect(entries[0].ageSeconds).toBeGreaterThanOrEqual(ageSeconds);
+      expect(entries[0].ageSeconds).toBeLessThan(ageSeconds + 2);
     });
 
     it('ignores files and only lists directories', () => {
@@ -67,9 +69,9 @@ describe('workspaceCleanup', () => {
   });
 
   describe('runWorkspaceCleanup', () => {
-    it('returns [] when workspace dir does not exist', () => {
-      expect(runWorkspaceCleanup(2, false)).toEqual([]);
-      expect(runWorkspaceCleanup(2, true)).toEqual([]);
+    it('throws when workspace dir does not exist', () => {
+      expect(() => runWorkspaceCleanup(2, false)).toThrow();
+      expect(() => runWorkspaceCleanup(2, true)).toThrow();
     });
 
     it('deletes dirs older than retentionDays and returns their names', () => {

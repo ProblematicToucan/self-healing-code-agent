@@ -1,5 +1,6 @@
 import { readdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { logger } from './logger';
 
 const WORKSPACE_DIR = 'workspace';
 
@@ -17,7 +18,7 @@ export function getWorkspaceRoot(): string {
 
 /**
  * List direct child directories of workspace with name and age (seconds since mtime).
- * If workspace does not exist, returns [].
+ * Throws if the workspace root cannot be read (IO/permission).
  */
 export function listWorkspaceEntries(): WorkspaceEntry[] {
   const root = getWorkspaceRoot();
@@ -38,8 +39,12 @@ export function listWorkspaceEntries(): WorkspaceEntry[] {
       }
     }
     return entries;
-  } catch {
-    return [];
+  } catch (err) {
+    logger.error('workspace list failed: readdir', {
+      root,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
   }
 }
 
@@ -47,8 +52,8 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
  * Delete workspace directories older than retentionDays (by mtime), or return would-be-deleted list if dryRun.
- * Returns list of deleted (or would-be-deleted) directory names. If workspace missing, returns [].
- * Logs errors but does not throw; continues with other dirs.
+ * Returns list of deleted (or would-be-deleted) directory names.
+ * Throws if the workspace root cannot be read (IO/permission). Per-entry errors are logged and skipped.
  */
 export function runWorkspaceCleanup(retentionDays: number, dryRun: boolean): string[] {
   const root = getWorkspaceRoot();
@@ -77,8 +82,12 @@ export function runWorkspaceCleanup(retentionDays: number, dryRun: boolean): str
         console.error('[workspace-cleanup] stat failed for', fullPath, err);
       }
     }
-  } catch {
-    return [];
+  } catch (err) {
+    logger.error('workspace cleanup failed: readdir', {
+      root,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
   }
   return deleted;
 }

@@ -60,8 +60,71 @@ app.get(
 );
 
 const DEFAULT_RETENTION_DAYS = 2;
+const MIN_RETENTION_DAYS = 1;
+const MAX_RETENTION_DAYS = 365;
 const WORKSPACE_CLEANUP_FIRST_DELAY_MS = 60 * 1000; // 1 minute
 const WORKSPACE_CLEANUP_INTERVAL_MS_DEFAULT = 6 * 60 * 60 * 1000; // 6 hours
+const MIN_INTERVAL_MS = 60 * 1000; // 1 minute
+const MAX_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
+
+function getValidatedWorkspaceCleanupConfig(): {
+  retentionDays: number;
+  intervalMs: number;
+} {
+  const rawRetention = process.env.WORKSPACE_RETENTION_DAYS;
+  let retentionDays =
+    rawRetention !== undefined && rawRetention !== ''
+      ? parseInt(process.env.WORKSPACE_RETENTION_DAYS ?? '', 10)
+      : DEFAULT_RETENTION_DAYS;
+  if (!Number.isFinite(retentionDays)) {
+    logger.warn('workspace cleanup config: WORKSPACE_RETENTION_DAYS invalid, using default', {
+      value: process.env.WORKSPACE_RETENTION_DAYS,
+      default: DEFAULT_RETENTION_DAYS,
+    });
+    retentionDays = DEFAULT_RETENTION_DAYS;
+  }
+  const clampedRetention = Math.max(
+    MIN_RETENTION_DAYS,
+    Math.min(MAX_RETENTION_DAYS, retentionDays)
+  );
+  if (clampedRetention !== retentionDays) {
+    logger.warn('workspace cleanup config: WORKSPACE_RETENTION_DAYS clamped to bounds', {
+      value: retentionDays,
+      clamped: clampedRetention,
+      min: MIN_RETENTION_DAYS,
+      max: MAX_RETENTION_DAYS,
+    });
+  }
+  retentionDays = clampedRetention;
+
+  const rawInterval = process.env.WORKSPACE_CLEANUP_INTERVAL_MS;
+  let intervalMs =
+    rawInterval !== undefined && rawInterval !== ''
+      ? Math.floor(Number(process.env.WORKSPACE_CLEANUP_INTERVAL_MS)) // parseInt for large ms values can lose precision; floor(Number) is safe
+      : WORKSPACE_CLEANUP_INTERVAL_MS_DEFAULT;
+  if (!Number.isFinite(intervalMs)) {
+    logger.warn('workspace cleanup config: WORKSPACE_CLEANUP_INTERVAL_MS invalid, using default', {
+      value: process.env.WORKSPACE_CLEANUP_INTERVAL_MS,
+      default: WORKSPACE_CLEANUP_INTERVAL_MS_DEFAULT,
+    });
+    intervalMs = WORKSPACE_CLEANUP_INTERVAL_MS_DEFAULT;
+  }
+  const clampedInterval = Math.max(
+    MIN_INTERVAL_MS,
+    Math.min(MAX_INTERVAL_MS, intervalMs)
+  );
+  if (clampedInterval !== intervalMs) {
+    logger.warn('workspace cleanup config: WORKSPACE_CLEANUP_INTERVAL_MS clamped to bounds', {
+      value: intervalMs,
+      clamped: clampedInterval,
+      min: MIN_INTERVAL_MS,
+      max: MAX_INTERVAL_MS,
+    });
+  }
+  intervalMs = clampedInterval;
+
+  return { retentionDays, intervalMs };
+}
 
 app.get(
   '/workspace',
@@ -74,9 +137,19 @@ app.get(
 app.post(
   '/workspace/cleanup',
   asyncHandler(async (req: Request, res: Response) => {
+    const { retentionDays: defaultRetention } = getValidatedWorkspaceCleanupConfig();
+    const fromQuery = parseInt(String(req.query.retentionDays), 10);
+    const fromEnv =
+      process.env.WORKSPACE_RETENTION_DAYS !== undefined && process.env.WORKSPACE_RETENTION_DAYS !== ''
+        ? parseInt(process.env.WORKSPACE_RETENTION_DAYS, 10)
+        : NaN;
+    const raw =
+      (Number.isFinite(fromQuery) ? fromQuery : null) ??
+      (Number.isFinite(fromEnv) ? fromEnv : null) ??
+      defaultRetention;
     const retentionDays = Math.max(
-      1,
-      Math.min(365, Number(req.query.retentionDays) || Number(process.env.WORKSPACE_RETENTION_DAYS) || DEFAULT_RETENTION_DAYS)
+      MIN_RETENTION_DAYS,
+      Math.min(MAX_RETENTION_DAYS, raw)
     );
     const dryRun = req.query.dryRun === 'true' || req.query.dryRun === '1';
     const deleted = runWorkspaceCleanup(retentionDays, dryRun);
@@ -201,8 +274,7 @@ function stopWorker(): void {
 }
 
 function startWorkspaceCleanupSchedule(): void {
-  const retentionDays = Number(process.env.WORKSPACE_RETENTION_DAYS) || DEFAULT_RETENTION_DAYS;
-  const intervalMs = Number(process.env.WORKSPACE_CLEANUP_INTERVAL_MS) || WORKSPACE_CLEANUP_INTERVAL_MS_DEFAULT;
+  const { retentionDays, intervalMs } = getValidatedWorkspaceCleanupConfig();
 
   function runCleanup(): void {
     try {
