@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
-import { app } from './index';
+import { app, stopWorker } from './index';
 import { closeDb, enqueue } from './queue/db';
 import type { ErrorReport } from './schemas/errorReport';
 
@@ -19,6 +19,7 @@ function report(overrides: Partial<ErrorReport> = {}): ErrorReport {
 }
 
 afterEach(() => {
+  stopWorker();
   closeDb();
 });
 

@@ -91,7 +91,7 @@ app.post(
       });
       return;
     }
-    runWorkerLoop();
+    startWorker();
     res.json({
       triggered: true,
       message: 'Worker triggered to process next job',
@@ -127,10 +127,20 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
+let isWorkerRunning = false;
+let workerShouldStop = false;
+let pollTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
 function runWorkerLoop(): void {
+  if (workerShouldStop) {
+    isWorkerRunning = false;
+    return;
+  }
   const job = claimNext();
   if (!job) {
-    setTimeout(runWorkerLoop, POLL_INTERVAL_MS);
+    if (!workerShouldStop) {
+      pollTimeoutId = setTimeout(runWorkerLoop, POLL_INTERVAL_MS);
+    }
     return;
   }
   logger.info('worker claimed job', { jobId: job.id, source: job.report.source });
@@ -143,10 +153,28 @@ function runWorkerLoop(): void {
       setStatus(job.id, 'failed');
       logger.warn('worker job failed', { jobId: job.id, error: String(err) });
     })
-    .finally(() => runWorkerLoop());
+    .finally(() => {
+      if (!workerShouldStop) runWorkerLoop();
+    });
 }
 
-export { app };
+function startWorker(): void {
+  if (isWorkerRunning) return;
+  isWorkerRunning = true;
+  workerShouldStop = false;
+  runWorkerLoop();
+}
+
+function stopWorker(): void {
+  workerShouldStop = true;
+  if (pollTimeoutId) {
+    clearTimeout(pollTimeoutId);
+    pollTimeoutId = null;
+  }
+  isWorkerRunning = false;
+}
+
+export { app, startWorker, stopWorker };
 
 if (process.env.NODE_ENV !== 'test') {
   app.listen(port, () => {
@@ -158,6 +186,6 @@ if (process.env.NODE_ENV !== 'test') {
       port: Number(port),
       url: `http://localhost:${port}`,
     });
-    runWorkerLoop();
+    startWorker();
   });
 }
