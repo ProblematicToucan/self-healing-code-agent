@@ -27,6 +27,10 @@ npm install
 # Copy env example and configure
 cp .env.example .env
 
+# Run tests
+npm run test        # watch mode
+npm run test:run    # single run
+
 # Development
 npm run dev
 

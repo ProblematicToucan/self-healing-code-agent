@@ -5,16 +5,23 @@ import type { ErrorReport } from '../schemas/errorReport';
 import { errorReportFingerprint } from '../utils/fingerprint';
 import { logger } from '../utils/logger';
 
-const DB_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DB_DIR, 'queue.db');
+const DEFAULT_DB_DIR = path.join(process.cwd(), 'data');
+const DEFAULT_DB_PATH = path.join(DEFAULT_DB_DIR, 'queue.db');
 const STALE_MS = 10 * 60 * 1000; // 10 minutes
 
-let db: Database.Database;
+let db: Database.Database | null = null;
+
+function getDbPath(): string {
+  return process.env.QUEUE_DB_PATH ?? DEFAULT_DB_PATH;
+}
 
 function getDb(): Database.Database {
   if (!db) {
-    mkdirSync(DB_DIR, { recursive: true });
-    db = new Database(DB_PATH);
+    const dbPath = getDbPath();
+    if (dbPath !== ':memory:') {
+      mkdirSync(path.dirname(dbPath), { recursive: true });
+    }
+    db = new Database(dbPath);
     db.exec(`
       CREATE TABLE IF NOT EXISTS error_jobs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,6 +41,14 @@ function getDb(): Database.Database {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_error_jobs_fingerprint_status ON error_jobs (fingerprint, status)`);
   }
   return db;
+}
+
+/** Close the DB and clear the singleton (for tests). Next getDb() will open a new connection. */
+export function closeDb(): void {
+  if (db) {
+    db.close();
+    db = null;
+  }
 }
 
 function now(): string {
