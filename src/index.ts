@@ -12,6 +12,7 @@ import {
 import { errorReportSchema } from './schemas/errorReport';
 import { handleError, runPipeline } from './utils/errorHandler';
 import { logger } from './utils/logger';
+import { listWorkspaceEntries, runWorkspaceCleanup } from './utils/workspaceCleanup';
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -55,6 +56,31 @@ app.get(
   '/health',
   asyncHandler(async (_req: Request, res: Response) => {
     res.json({ status: 'ok' });
+  })
+);
+
+const DEFAULT_RETENTION_DAYS = 2;
+const WORKSPACE_CLEANUP_FIRST_DELAY_MS = 60 * 1000; // 1 minute
+const WORKSPACE_CLEANUP_INTERVAL_MS_DEFAULT = 6 * 60 * 60 * 1000; // 6 hours
+
+app.get(
+  '/workspace',
+  asyncHandler(async (_req: Request, res: Response) => {
+    const entries = listWorkspaceEntries();
+    res.json({ entries });
+  })
+);
+
+app.post(
+  '/workspace/cleanup',
+  asyncHandler(async (req: Request, res: Response) => {
+    const retentionDays = Math.max(
+      1,
+      Math.min(365, Number(req.query.retentionDays) || Number(process.env.WORKSPACE_RETENTION_DAYS) || DEFAULT_RETENTION_DAYS)
+    );
+    const dryRun = req.query.dryRun === 'true' || req.query.dryRun === '1';
+    const deleted = runWorkspaceCleanup(retentionDays, dryRun);
+    res.json({ deleted, dryRun });
   })
 );
 
@@ -174,6 +200,27 @@ function stopWorker(): void {
   isWorkerRunning = false;
 }
 
+function startWorkspaceCleanupSchedule(): void {
+  const retentionDays = Number(process.env.WORKSPACE_RETENTION_DAYS) || DEFAULT_RETENTION_DAYS;
+  const intervalMs = Number(process.env.WORKSPACE_CLEANUP_INTERVAL_MS) || WORKSPACE_CLEANUP_INTERVAL_MS_DEFAULT;
+
+  function runCleanup(): void {
+    try {
+      const deleted = runWorkspaceCleanup(retentionDays, false);
+      if (deleted.length > 0) {
+        logger.info('workspace cleanup ran', { deletedCount: deleted.length, deleted });
+      }
+    } catch (err) {
+      logger.warn('workspace cleanup error', { error: String(err) });
+    }
+  }
+
+  setTimeout(() => {
+    runCleanup();
+    setInterval(runCleanup, intervalMs);
+  }, WORKSPACE_CLEANUP_FIRST_DELAY_MS);
+}
+
 export { app, startWorker, stopWorker };
 
 if (process.env.NODE_ENV !== 'test') {
@@ -187,5 +234,6 @@ if (process.env.NODE_ENV !== 'test') {
       url: `http://localhost:${port}`,
     });
     startWorker();
+    startWorkspaceCleanupSchedule();
   });
 }

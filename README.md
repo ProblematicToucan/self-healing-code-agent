@@ -10,6 +10,7 @@ An Express + TypeScript API that accepts error reports and runs an automated sel
 - **SQLite job queue** — Durable, in-process queue. Jobs survive restarts. Duplicate reports (same fingerprint) are deduplicated. Stale jobs (processing > 10 min) are auto-reclaimed.
 - **Self-healing pipeline** — For each job: clone repo → install deps → investigate → fix → commit & push → open PR (via Cursor agent CLI).
 - **Queue inspection** — `GET /queue` lists jobs with stats and optional status filter. `POST /queue/trigger` manually kicks the worker.
+- **Workspace cleanup** — Auto-deletion of clone dirs older than 2 days (configurable). `GET /workspace` lists entries; `POST /workspace/cleanup` runs cleanup on demand (optional `retentionDays`, `dryRun`).
 
 ## Requirements
 
@@ -48,6 +49,8 @@ npm start
 | POST   | `/error`        | Submit an error report                        |
 | GET    | `/queue`        | Queue stats + list jobs (`?limit=50&status=pending`) |
 | POST   | `/queue/trigger`| Manually trigger worker to process next job   |
+| GET    | `/workspace`    | List workspace clone dirs (name, ageSeconds)  |
+| POST   | `/workspace/cleanup` | Run cleanup (`?retentionDays=2&dryRun=true`)   |
 
 ### POST /error
 
@@ -90,6 +93,8 @@ See [.env.example](.env.example) for all options. Key variables:
 
 For Docker/pipeline: `CURSOR_API_KEY`, `GIT_TOKEN`, `GIT_URL` (optional; custom Git host), and `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` / `GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL`.
 
+Workspace cleanup: `WORKSPACE_RETENTION_DAYS` (default `2`), `WORKSPACE_CLEANUP_INTERVAL_MS` (default `21600000` = 6 hours). Auto-cleanup runs 1 minute after startup, then every 6 hours.
+
 ## Docker
 
 ```bash
@@ -117,13 +122,14 @@ The container includes Cursor agent CLI, Git, GitHub CLI (`gh`), and GitLab CLI 
 
 ```
 src/
-├── index.ts          # Express app, routes, worker loop, /queue endpoints
+├── index.ts          # Express app, routes, worker loop, /queue, /workspace endpoints
 ├── queue/db.ts       # SQLite queue (enqueue, claimNext, setStatus, listQueueJobs, getQueueStats)
 ├── schemas/errorReport.ts
 └── utils/
-    ├── errorHandler.ts  # Pipeline (clone, agent steps) & handleError
-    ├── fingerprint.ts   # Deduplication fingerprint (message + stack + source + branch)
-    └── logger.ts
+    ├── errorHandler.ts   # Pipeline (clone, agent steps) & handleError
+    ├── fingerprint.ts    # Deduplication fingerprint (message + stack + source + branch)
+    ├── logger.ts
+    └── workspaceCleanup.ts  # List/delete old workspace dirs (2-day retention, auto + endpoints)
 ```
 
 ## License
