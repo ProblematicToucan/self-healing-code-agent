@@ -125,3 +125,34 @@ describe('POST /queue/trigger', () => {
     expect(res.body.triggered).toBe(true);
   });
 });
+
+describe('GET /workspace', () => {
+  it('returns 200 and entries array', async () => {
+    const res = await request(app).get('/workspace');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('entries');
+    expect(Array.isArray(res.body.entries)).toBe(true);
+  });
+});
+
+describe('POST /workspace/cleanup', () => {
+  it('returns 200 with deleted and dryRun when dryRun=true', async () => {
+    const res = await request(app).post('/workspace/cleanup?dryRun=true');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ dryRun: true });
+    expect(Array.isArray(res.body.deleted)).toBe(true);
+  });
+
+  it('returns 200 with deleted array when no query params', async () => {
+    const res = await request(app).post('/workspace/cleanup');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('deleted');
+    expect(res.body.dryRun).toBe(false);
+  });
+
+  it('accepts retentionDays query param', async () => {
+    const res = await request(app).post('/workspace/cleanup?retentionDays=3&dryRun=true');
+    expect(res.status).toBe(200);
+    expect(res.body.dryRun).toBe(true);
+  });
+});
