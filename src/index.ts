@@ -146,14 +146,18 @@ function runWorkerLoop(): void {
     .finally(() => runWorkerLoop());
 }
 
-app.listen(port, () => {
-  reclaimAbandonedOnStartup();
-  logger.info('server started', {
-    pid: process.pid,
-    nodeVersion: process.version,
-    env: process.env.NODE_ENV ?? 'development',
-    port: Number(port),
-    url: `http://localhost:${port}`,
+export { app };
+
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(port, () => {
+    reclaimAbandonedOnStartup();
+    logger.info('server started', {
+      pid: process.pid,
+      nodeVersion: process.version,
+      env: process.env.NODE_ENV ?? 'development',
+      port: Number(port),
+      url: `http://localhost:${port}`,
+    });
+    runWorkerLoop();
   });
-  runWorkerLoop();
-});
+}
