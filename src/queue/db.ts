@@ -1,9 +1,9 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import type { ErrorReport } from '../schemas/errorReport';
-import { errorReportFingerprint } from '../utils/fingerprint';
-import { logger } from '../utils/logger';
+import type { ErrorReport } from '../schemas/errorReport.js';
+import { errorReportFingerprint } from '../utils/fingerprint.js';
+import { logger } from '../utils/logger.js';
 
 const DEFAULT_DB_DIR = path.join(process.cwd(), 'data');
 const DEFAULT_DB_PATH = path.join(DEFAULT_DB_DIR, 'queue.db');

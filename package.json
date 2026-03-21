@@ -1,9 +1,10 @@
 {
   "name": "self-healing-code",
   "version": "1.0.0",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest",
@@ -26,8 +27,7 @@
     "@types/node": "^25.4.0",
     "@types/supertest": "^6.0.2",
     "supertest": "^7.0.0",
-    "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.19.3",
     "typescript": "^5.9.3",
     "vitest": "^2.1.0"
   }

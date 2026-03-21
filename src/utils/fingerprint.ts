@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { ErrorReport } from '../schemas/errorReport';
+import type { ErrorReport } from '../schemas/errorReport.js';
 
 /** Normalize stack to first N lines to avoid minor line-number drift counting as different. */
 const STACK_LINES = 10;

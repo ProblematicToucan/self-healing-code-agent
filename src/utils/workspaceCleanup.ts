@@ -1,6 +1,6 @@
 import { readdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { logger } from './logger';
+import { logger } from './logger.js';
 
 const WORKSPACE_DIR = 'workspace';
 

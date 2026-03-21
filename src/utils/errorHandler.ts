@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { ErrorReport } from '../schemas/errorReport';
+import type { ErrorReport } from '../schemas/errorReport.js';
 
 const AGENT_CMD = 'agent';
 const WORKSPACE_DIR = 'workspace';

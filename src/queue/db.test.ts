@@ -7,8 +7,8 @@ import {
   getQueueStats,
   listQueueJobs,
   reclaimAbandonedOnStartup,
-} from './db';
-import type { ErrorReport } from '../schemas/errorReport';
+} from './db.js';
+import type { ErrorReport } from '../schemas/errorReport.js';
 
 function report(overrides: Partial<ErrorReport> = {}): ErrorReport {
   return {

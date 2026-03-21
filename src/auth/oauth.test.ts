@@ -3,7 +3,7 @@ import {
   parseOAuthClientsJson,
   safeCompareSecrets,
   validateOAuthConfigAtStartup,
-} from './oauth';
+} from './oauth.js';
 
 describe('parseOAuthClientsJson', () => {
   it('parses valid JSON array into a map', () => {

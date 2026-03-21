@@ -6,7 +6,7 @@ import {
   isOAuthEnabled,
   issueAccessToken,
   verifyClientCredentials,
-} from './auth/oauth';
+} from './auth/oauth.js';
 import {
   claimNext,
   enqueue,
@@ -14,14 +14,14 @@ import {
   listQueueJobs,
   reclaimAbandonedOnStartup,
   setStatus,
-} from './queue/db';
-import { requireBearerAuth } from './middleware/requireBearerAuth';
-import { errorReportSchema } from './schemas/errorReport';
-import { handleError, runPipeline } from './utils/errorHandler';
-import { logger } from './utils/logger';
-import { listWorkspaceEntries, runWorkspaceCleanup } from './utils/workspaceCleanup';
-import openApiSpec from './openapi.json';
-import { scalarReferenceHtml } from './scalarReference';
+} from './queue/db.js';
+import { requireBearerAuth } from './middleware/requireBearerAuth.js';
+import { errorReportSchema } from './schemas/errorReport.js';
+import { handleError, runPipeline } from './utils/errorHandler.js';
+import { logger } from './utils/logger.js';
+import { listWorkspaceEntries, runWorkspaceCleanup } from './utils/workspaceCleanup.js';
+import openApiSpec from './openapi.json' with { type: 'json' };
+import { scalarReferenceHtml } from './scalarReference.js';
 
 assertOAuthConfigOrThrow();
 

@@ -1,6 +1,6 @@
-import '../types/express-augment';
+import '../types/express-augment.js';
 import type { NextFunction, Request, Response } from 'express';
-import { isOAuthEnabled, verifyAccessToken } from '../auth/oauth';
+import { isOAuthEnabled, verifyAccessToken } from '../auth/oauth.js';
 
 function isPublicOAuthRoute(req: Request): boolean {
   if (req.method === 'GET' && (req.path === '/' || req.path === '/health')) {
