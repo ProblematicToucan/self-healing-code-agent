@@ -132,6 +132,16 @@ src/
     └── workspaceCleanup.ts  # List/delete old workspace dirs (2-day retention, auto + endpoints)
 ```
 
+## Contributing
+
+We welcome contributions. Please use **fork → feature branch → pull request**:
+
+1. **Fork** this repository to your account.
+2. Create a **feature branch** from the default branch (do not commit directly on `main`).
+3. **Push** to your fork and open a **Pull Request** into this repo.
+
+Details, naming conventions, and verification steps are in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
-ISC
+This project is licensed under the [MIT License](LICENSE).
