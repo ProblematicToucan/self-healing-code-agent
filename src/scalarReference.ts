@@ -3,7 +3,7 @@
  * matching the HTML shape produced by @scalar/core's getHtmlDocument.
  * (The Express middleware package is ESM-only; this project emits CommonJS.)
  */
-const SCALAR_CDN = 'https://cdn.jsdelivr.net/npm/@scalar/api-reference';
+const SCALAR_CDN = 'https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.49.1';
 
 export type ScalarPageOptions = {
   /** OpenAPI document URL (same origin), e.g. `/openapi.json` */
