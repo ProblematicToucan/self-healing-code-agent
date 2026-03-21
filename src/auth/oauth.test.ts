@@ -31,6 +31,40 @@ describe('parseOAuthClientsJson', () => {
     const map = parseOAuthClientsJson(asStoredBySomeHosts);
     expect(map.get('a')).toBe('s1');
   });
+
+  it('accepts a single client object (not wrapped in array)', () => {
+    const map = parseOAuthClientsJson(
+      JSON.stringify({ client_id: 'solo', client_secret: 'sec' })
+    );
+    expect(map.get('solo')).toBe('sec');
+  });
+
+  it('normalizes curly double quotes from copy-paste', () => {
+    const map = parseOAuthClientsJson(
+      '[{\u201cclient_id\u201d:\u201ca\u201d,\u201cclient_secret\u201d:\u201cs\u201d}]'
+    );
+    expect(map.get('a')).toBe('s');
+  });
+
+  it('unwraps outer single-quote wrapper', () => {
+    const map = parseOAuthClientsJson(
+      `'${JSON.stringify([{ client_id: 'a', client_secret: 's1' }])}'`
+    );
+    expect(map.get('a')).toBe('s1');
+  });
+
+  it('parses URL-encoded payload', () => {
+    const json = JSON.stringify([{ client_id: 'a', client_secret: 's&1' }]);
+    const map = parseOAuthClientsJson(encodeURIComponent(json));
+    expect(map.get('a')).toBe('s&1');
+  });
+
+  it('parses base64-encoded UTF-8 JSON', () => {
+    const json = JSON.stringify([{ client_id: 'a', client_secret: 's1' }]);
+    const b64 = Buffer.from(json, 'utf8').toString('base64');
+    const map = parseOAuthClientsJson(b64);
+    expect(map.get('a')).toBe('s1');
+  });
 });
 
 describe('safeCompareSecrets', () => {
