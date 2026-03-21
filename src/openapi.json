@@ -11,7 +11,8 @@
     { "name": "oauth", "description": "OAuth 2.0 (optional)" },
     { "name": "workspace", "description": "Workspace directories" },
     { "name": "queue", "description": "Error job queue" },
-    { "name": "errors", "description": "Submit error reports" }
+    { "name": "errors", "description": "Submit error reports" },
+    { "name": "documentation", "description": "OpenAPI document and interactive API reference" }
   ],
   "paths": {
     "/": {
@@ -51,6 +52,49 @@
                   "properties": {
                     "status": { "type": "string", "enum": ["ok"] }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": ["documentation"],
+        "summary": "OpenAPI document",
+        "description": "Returns this service's OpenAPI 3 specification as JSON (same document as this file when served).",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3 document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "OpenAPI 3.x root object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reference": {
+      "get": {
+        "tags": ["documentation"],
+        "summary": "Interactive API reference",
+        "description": "HTML page (Scalar API Reference) that loads the spec from `/openapi.json`.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Rendered API documentation",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "description": "HTML document that bootstraps the Scalar API Reference UI"
                 }
               }
             }
