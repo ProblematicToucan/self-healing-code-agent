@@ -30,6 +30,13 @@ describe('parseOAuthClientsJson', () => {
     expect(map.get('a')).toBe('b');
   });
 
+  it('repairs JavaScript-style single-quoted keys (Coolify / env UIs)', () => {
+    const map = parseOAuthClientsJson(
+      "[{'client_id':'test-m2m-client','client_secret':'fake-secret-not-for-production'}]"
+    );
+    expect(map.get('test-m2m-client')).toBe('fake-secret-not-for-production');
+  });
+
   it('includes JSON.parse diagnostic in error for malformed input', () => {
     expect(() => parseOAuthClientsJson('not json')).toThrow(/invalid JSON/);
     expect(() => parseOAuthClientsJson('not json')).toThrow(/JSON/);
