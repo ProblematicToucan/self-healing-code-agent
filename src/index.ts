@@ -129,6 +129,8 @@ app.post(
       return;
     }
     const token = await issueAccessToken(clientId);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
     res.status(200).json(token);
   })
 );
