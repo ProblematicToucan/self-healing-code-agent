@@ -347,6 +347,15 @@
     "responses": {
       "Unauthorized": {
         "description": "Missing or invalid Bearer token (when OAuth is enabled)",
+        "headers": {
+          "WWW-Authenticate": {
+            "description": "RFC 6750 Bearer challenge (`realm`, `error`, `error_description`)",
+            "schema": {
+              "type": "string",
+              "example": "Bearer realm=\"API\", error=\"invalid_token\", error_description=\"Access token is invalid or expired\""
+            }
+          }
+        },
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/OAuthError" }

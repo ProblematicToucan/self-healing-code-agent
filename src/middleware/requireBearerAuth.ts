@@ -2,6 +2,23 @@ import '../types/express-augment.js';
 import type { NextFunction, Request, Response } from 'express';
 import { isOAuthEnabled, verifyAccessToken } from '../auth/oauth.js';
 
+function buildBearerWwwAuthenticateValue(
+  error: 'invalid_request' | 'invalid_token',
+  description: string
+): string {
+  const escaped = description.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `Bearer realm="API", error="${error}", error_description="${escaped}"`;
+}
+
+function sendBearerAuthError(
+  res: Response,
+  error: 'invalid_request' | 'invalid_token',
+  description: string
+): void {
+  res.setHeader('WWW-Authenticate', buildBearerWwwAuthenticateValue(error, description));
+  res.status(401).json({ error, error_description: description });
+}
+
 function isPublicOAuthRoute(req: Request): boolean {
   if (
     (req.method === 'GET' || req.method === 'HEAD') &&
@@ -34,18 +51,16 @@ export function requireBearerAuth(req: Request, res: Response, next: NextFunctio
 
   const header = req.headers.authorization;
   if (!header || !header.toLowerCase().startsWith('bearer ')) {
-    res.status(401).json({
-      error: 'invalid_request',
-      error_description: 'Missing or invalid Authorization header (expected Bearer token)',
-    });
+    sendBearerAuthError(
+      res,
+      'invalid_request',
+      'Missing or invalid Authorization header (expected Bearer token)'
+    );
     return;
   }
   const token = header.slice(7).trim();
   if (!token) {
-    res.status(401).json({
-      error: 'invalid_request',
-      error_description: 'Empty Bearer token',
-    });
+    sendBearerAuthError(res, 'invalid_request', 'Empty Bearer token');
     return;
   }
 
@@ -55,9 +70,6 @@ export function requireBearerAuth(req: Request, res: Response, next: NextFunctio
       next();
     })
     .catch(() => {
-      res.status(401).json({
-        error: 'invalid_token',
-        error_description: 'Access token is invalid or expired',
-      });
+      sendBearerAuthError(res, 'invalid_token', 'Access token is invalid or expired');
     });
 }
