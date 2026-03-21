@@ -36,6 +36,7 @@ function normalizeOAuthClientsEnvString(raw: string): string {
   if (s.startsWith('[')) {
     s = stripTrailingCommasBeforeClosingBrackets(s);
   }
+  s = repairSingleQuotedJsonKeys(s);
   return s;
 }
 
@@ -51,6 +52,23 @@ function stripTrailingCommasBeforeClosingBrackets(s: string): string {
     t = next;
   }
   return t;
+}
+
+/**
+ * Coolify and some env UIs store JSON-like text with single-quoted keys/strings. That is not
+ * valid JSON (`Expected property name or '}' in JSON at position 2` right after `[{`). When
+ * there are no ASCII double quotes (real JSON strings), convert `'` → `"`.
+ * Do not use single quotes inside client_id / client_secret values; use standard JSON instead.
+ */
+function looksLikeSingleQuotedJsonKeys(s: string): boolean {
+  const t = s.trim();
+  return /^\[\s*\{\s*'/.test(t) || /^\{\s*'/.test(t);
+}
+
+function repairSingleQuotedJsonKeys(s: string): string {
+  if (!s.includes("'") || s.includes('"')) return s;
+  if (!looksLikeSingleQuotedJsonKeys(s)) return s;
+  return s.replace(/'/g, '"');
 }
 
 function tryDecodeBase64JsonPayload(s: string): string | null {
@@ -69,8 +87,16 @@ function tryDecodeBase64JsonPayload(s: string): string | null {
 function jsonParseOrThrow(s: string): unknown {
   try {
     return JSON.parse(s);
-  } catch (e) {
-    const detail = e instanceof SyntaxError ? e.message : 'parse failed';
+  } catch (e1) {
+    const repaired = repairSingleQuotedJsonKeys(s);
+    if (repaired !== s) {
+      try {
+        return JSON.parse(repaired);
+      } catch {
+        /* fall through */
+      }
+    }
+    const detail = e1 instanceof SyntaxError ? e1.message : 'parse failed';
     throw new Error(`invalid JSON (${detail})`);
   }
 }
