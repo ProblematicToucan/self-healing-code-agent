@@ -18,17 +18,25 @@
     "/": {
       "get": {
         "tags": ["meta"],
-        "summary": "Root",
+        "summary": "Service metadata",
         "security": [],
         "responses": {
           "200": {
-            "description": "Service banner",
+            "description": "Service metadata and links to documentation",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": ["name", "version", "description", "documentation", "openapi"],
                   "properties": {
-                    "message": { "type": "string", "example": "Hello from Express + TypeScript" }
+                    "name": { "type": "string", "example": "Self-Healing Code" },
+                    "version": { "type": "string", "example": "1.0.0" },
+                    "description": {
+                      "type": "string",
+                      "example": "Self-healing API for automated error repair pipelines"
+                    },
+                    "documentation": { "type": "string", "example": "/reference" },
+                    "openapi": { "type": "string", "example": "/openapi.json" }
                   }
                 }
               }

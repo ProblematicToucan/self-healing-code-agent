@@ -46,7 +46,7 @@ npm start
 
 | Method | Path            | Description                                   |
 |--------|-----------------|-----------------------------------------------|
-| GET    | `/`             | Health-style hello                            |
+| GET    | `/`             | Service metadata (name, version, doc links)   |
 | GET    | `/health`       | Health check (`{ status: "ok" }`)            |
 | GET    | `/reference`    | Scalar interactive API reference (browser UI) |
 | GET    | `/openapi.json` | OpenAPI 3.0 specification (JSON)             |
@@ -56,6 +56,10 @@ npm start
 | POST   | `/queue/trigger`| Manually trigger worker to process next job   |
 | GET    | `/workspace`    | List workspace clone dirs (name, ageSeconds)  |
 | POST   | `/workspace/cleanup` | Run cleanup (`?retentionDays=2&dryRun=true`)   |
+
+### GET /
+
+Returns JSON with `name`, `version`, `description`, and relative paths `documentation` (`/reference`) and `openapi` (`/openapi.json`). Use **`GET /health`** for a minimal liveness probe (`{ "status": "ok" }`).
 
 ### API documentation (Scalar)
 
