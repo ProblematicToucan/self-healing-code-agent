@@ -13,14 +13,46 @@ const clientsSchema = z.array(clientEntrySchema);
 
 const MAX_JSON_UNWRAP = 4;
 
+/** Copy-paste / editors sometimes use these instead of ASCII `"` in JSON. */
+function normalizeJsonQuotes(s: string): string {
+  return s.replace(/[\u201c\u201d\u201e\u201f\u00ab\u00bb]/g, '"');
+}
+
+/**
+ * Trim BOM/whitespace, normalize quotes, unwrap a single layer of `'...'` when the inner
+ * content looks like JSON (common in env UIs).
+ */
+function normalizeOAuthClientsEnvString(raw: string): string {
+  let s = raw.trim();
+  if (s.startsWith('\ufeff')) s = s.slice(1);
+  s = normalizeJsonQuotes(s);
+  if (s.length >= 2 && s[0] === "'" && s[s.length - 1] === "'") {
+    const inner = s.slice(1, -1).trim();
+    if (inner.startsWith('[') || inner.startsWith('{') || inner.startsWith('"')) {
+      s = inner;
+    }
+  }
+  return s;
+}
+
+function tryDecodeBase64JsonPayload(s: string): string | null {
+  const compact = s.replace(/\s+/g, '');
+  if (compact.length < 8) return null;
+  if (!/^[A-Za-z0-9+/]+=*$/.test(compact)) return null;
+  try {
+    const decoded = Buffer.from(compact, 'base64').toString('utf8').trim();
+    if (decoded.startsWith('[') || decoded.startsWith('{')) return decoded;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 /**
  * Parse JSON that may be double-encoded (e.g. Coolify / Docker env UIs that store a JSON string).
  * First parse can yield a string whose content is the actual JSON array.
  */
-function parseJsonClientsPayload(raw: string): unknown {
-  let s = raw.trim();
-  if (s.startsWith('\ufeff')) s = s.slice(1);
-
+function unwrapJsonStringLayers(s: string): unknown {
   let parsed: unknown;
   for (let depth = 0; depth < MAX_JSON_UNWRAP; depth++) {
     try {
@@ -36,6 +68,31 @@ function parseJsonClientsPayload(raw: string): unknown {
   throw new Error('invalid JSON');
 }
 
+function parseJsonClientsPayload(raw: string): unknown {
+  const base = normalizeOAuthClientsEnvString(raw);
+
+  const candidates: string[] = [base];
+  if (base.includes('%')) {
+    try {
+      const decoded = decodeURIComponent(base);
+      if (decoded !== base) candidates.push(decoded);
+    } catch {
+      /* ignore */
+    }
+  }
+  const b64 = tryDecodeBase64JsonPayload(base);
+  if (b64 !== null) candidates.push(b64);
+
+  for (const candidate of candidates) {
+    try {
+      return unwrapJsonStringLayers(candidate);
+    } catch {
+      /* try next */
+    }
+  }
+  throw new Error('invalid JSON');
+}
+
 /**
  * Parse `OAUTH_CLIENTS` JSON into a map. Duplicate `client_id` values throw.
  */
@@ -45,6 +102,15 @@ export function parseOAuthClientsJson(raw: string): Map<string, string> {
     parsed = parseJsonClientsPayload(raw);
   } catch {
     throw new Error('invalid JSON');
+  }
+  if (
+    parsed !== null &&
+    typeof parsed === 'object' &&
+    !Array.isArray(parsed) &&
+    'client_id' in parsed &&
+    'client_secret' in parsed
+  ) {
+    parsed = [parsed];
   }
   const result = clientsSchema.safeParse(parsed);
   if (!result.success) {
@@ -68,6 +134,16 @@ export function isOAuthEnabled(): boolean {
   const rawClients = process.env.OAUTH_CLIENTS?.trim() ?? '';
   if (!rawSecret || !rawClients) return false;
   return validateOAuthConfigAtStartup().ok;
+}
+
+/** Safe diagnostic for startup errors (no secret substrings). */
+function oauthClientsParseHint(raw: string): string {
+  const t = raw.trim();
+  if (t.length === 0) return '';
+  const first = t[0];
+  const code = first.charCodeAt(0);
+  const looksJsonish = /^\s*[\[{"]/.test(t);
+  return ` — value length ${t.length}, first code point U+${code.toString(16).toUpperCase().padStart(4, '0')}, looksLikeJsonStart=${looksJsonish}`;
 }
 
 /**
@@ -97,9 +173,11 @@ export function validateOAuthConfigAtStartup(): { ok: boolean; message?: string 
       return { ok: false, message: 'OAUTH_CLIENTS must contain at least one client.' };
     }
   } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    const hint = oauthClientsParseHint(rawClients);
     return {
       ok: false,
-      message: `OAUTH_CLIENTS: ${e instanceof Error ? e.message : String(e)}`,
+      message: `OAUTH_CLIENTS: ${detail}${hint}`,
     };
   }
   return { ok: true };
