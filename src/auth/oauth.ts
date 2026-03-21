@@ -18,6 +18,11 @@ function normalizeJsonQuotes(s: string): string {
   return s.replace(/[\u201c\u201d\u201e\u201f\u00ab\u00bb]/g, '"');
 }
 
+/** Env UIs often use typographic apostrophes (U+2018/U+2019) instead of ASCII `'` for pseudo-JSON. */
+function normalizeApostropheDelimiters(s: string): string {
+  return s.replace(/[\u2018\u2019\u201a\u201b]/g, "'");
+}
+
 /**
  * Trim BOM/whitespace, normalize quotes, unwrap a single layer of `'...'` when the inner
  * content looks like JSON (common in env UIs).
@@ -26,6 +31,7 @@ function normalizeOAuthClientsEnvString(raw: string): string {
   let s = raw.trim();
   if (s.startsWith('\ufeff')) s = s.slice(1);
   if (s.includes('\0')) s = s.replace(/\0/g, '');
+  s = normalizeApostropheDelimiters(s);
   s = normalizeJsonQuotes(s);
   if (s.length >= 2 && s[0] === "'" && s[s.length - 1] === "'") {
     const inner = s.slice(1, -1).trim();
@@ -62,13 +68,17 @@ function stripTrailingCommasBeforeClosingBrackets(s: string): string {
  */
 function looksLikeSingleQuotedJsonKeys(s: string): boolean {
   const t = s.trim();
-  return /^\[\s*\{\s*'/.test(t) || /^\{\s*'/.test(t);
+  // After normalizeApostropheDelimiters only ASCII ' is needed; allow both for inner unwrap paths.
+  return /^\[\s*\{\s*['\u2018\u2019]/.test(t) || /^\{\s*['\u2018\u2019]/.test(t);
 }
 
 function repairSingleQuotedJsonKeys(s: string): string {
-  if (!s.includes("'") || s.includes('"')) return s;
-  if (!looksLikeSingleQuotedJsonKeys(s)) return s;
-  return s.replace(/'/g, '"');
+  const hasAsciiSingle = s.includes("'");
+  const hasTypographicSingle = /[\u2018\u2019\u201a\u201b]/.test(s);
+  if ((!hasAsciiSingle && !hasTypographicSingle) || s.includes('"')) return s;
+  let t = hasTypographicSingle ? normalizeApostropheDelimiters(s) : s;
+  if (!looksLikeSingleQuotedJsonKeys(t)) return s;
+  return t.replace(/'/g, '"');
 }
 
 function tryDecodeBase64JsonPayload(s: string): string | null {
