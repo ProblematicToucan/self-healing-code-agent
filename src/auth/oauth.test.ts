@@ -37,6 +37,13 @@ describe('parseOAuthClientsJson', () => {
     expect(map.get('test-m2m-client')).toBe('fake-secret-not-for-production');
   });
 
+  it('repairs typographic apostrophes (U+2019) used as string delimiters', () => {
+    const map = parseOAuthClientsJson(
+      '[{\u2018client_id\u2019:\u2018svc\u2019,\u2018client_secret\u2019:\u2018fake\u2019}]'
+    );
+    expect(map.get('svc')).toBe('fake');
+  });
+
   it('includes JSON.parse diagnostic in error for malformed input', () => {
     expect(() => parseOAuthClientsJson('not json')).toThrow(/invalid JSON/);
     expect(() => parseOAuthClientsJson('not json')).toThrow(/JSON/);
