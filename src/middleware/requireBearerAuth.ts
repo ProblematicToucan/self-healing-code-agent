@@ -3,7 +3,13 @@ import type { NextFunction, Request, Response } from 'express';
 import { isOAuthEnabled, verifyAccessToken } from '../auth/oauth.js';
 
 function isPublicOAuthRoute(req: Request): boolean {
-  if (req.method === 'GET' && (req.path === '/' || req.path === '/health')) {
+  if (
+    req.method === 'GET' &&
+    (req.path === '/' ||
+      req.path === '/health' ||
+      req.path === '/openapi.json' ||
+      req.path === '/reference')
+  ) {
     return true;
   }
   if (req.method === 'POST' && req.path === '/oauth/token') {
@@ -14,7 +20,7 @@ function isPublicOAuthRoute(req: Request): boolean {
 
 /**
  * When OAuth is enabled, requires a valid Bearer JWT for all routes except
- * `GET /`, `GET /health`, and `POST /oauth/token`.
+ * `GET /`, `GET /health`, `GET /openapi.json`, `GET /reference`, and `POST /oauth/token`.
  */
 export function requireBearerAuth(req: Request, res: Response, next: NextFunction): void {
   if (!isOAuthEnabled()) {
