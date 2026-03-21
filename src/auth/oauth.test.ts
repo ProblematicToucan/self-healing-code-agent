@@ -24,6 +24,13 @@ describe('parseOAuthClientsJson', () => {
       )
     ).toThrow(/duplicate client_id/);
   });
+
+  it('parses double-encoded JSON (env UIs that JSON-stringify the array)', () => {
+    const inner = JSON.stringify([{ client_id: 'a', client_secret: 's1' }]);
+    const asStoredBySomeHosts = JSON.stringify(inner);
+    const map = parseOAuthClientsJson(asStoredBySomeHosts);
+    expect(map.get('a')).toBe('s1');
+  });
 });
 
 describe('safeCompareSecrets', () => {

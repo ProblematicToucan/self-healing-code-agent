@@ -11,13 +11,38 @@ const clientEntrySchema = z.object({
 
 const clientsSchema = z.array(clientEntrySchema);
 
+const MAX_JSON_UNWRAP = 4;
+
+/**
+ * Parse JSON that may be double-encoded (e.g. Coolify / Docker env UIs that store a JSON string).
+ * First parse can yield a string whose content is the actual JSON array.
+ */
+function parseJsonClientsPayload(raw: string): unknown {
+  let s = raw.trim();
+  if (s.startsWith('\ufeff')) s = s.slice(1);
+
+  let parsed: unknown;
+  for (let depth = 0; depth < MAX_JSON_UNWRAP; depth++) {
+    try {
+      parsed = JSON.parse(s);
+    } catch {
+      throw new Error('invalid JSON');
+    }
+    if (typeof parsed !== 'string') return parsed;
+    const inner = parsed.trim();
+    if (!inner.startsWith('[') && !inner.startsWith('{')) return parsed;
+    s = inner;
+  }
+  throw new Error('invalid JSON');
+}
+
 /**
  * Parse `OAUTH_CLIENTS` JSON into a map. Duplicate `client_id` values throw.
  */
 export function parseOAuthClientsJson(raw: string): Map<string, string> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = parseJsonClientsPayload(raw);
   } catch {
     throw new Error('invalid JSON');
   }
