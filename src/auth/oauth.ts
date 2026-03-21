@@ -25,6 +25,7 @@ function normalizeJsonQuotes(s: string): string {
 function normalizeOAuthClientsEnvString(raw: string): string {
   let s = raw.trim();
   if (s.startsWith('\ufeff')) s = s.slice(1);
+  if (s.includes('\0')) s = s.replace(/\0/g, '');
   s = normalizeJsonQuotes(s);
   if (s.length >= 2 && s[0] === "'" && s[s.length - 1] === "'") {
     const inner = s.slice(1, -1).trim();
@@ -32,7 +33,24 @@ function normalizeOAuthClientsEnvString(raw: string): string {
       s = inner;
     }
   }
+  if (s.startsWith('[')) {
+    s = stripTrailingCommasBeforeClosingBrackets(s);
+  }
   return s;
+}
+
+/**
+ * Trailing commas are invalid JSON but common in hand-edited / generated env values.
+ * Only strips commas immediately before a closing `}` or `]` at the end of the string (repeat).
+ */
+function stripTrailingCommasBeforeClosingBrackets(s: string): string {
+  let t = s.trim();
+  for (let i = 0; i < 8; i++) {
+    const next = t.replace(/,\s*\]$/, ']').replace(/,\s*\}\s*\]$/, '}]');
+    if (next === t) break;
+    t = next;
+  }
+  return t;
 }
 
 function tryDecodeBase64JsonPayload(s: string): string | null {
@@ -48,6 +66,15 @@ function tryDecodeBase64JsonPayload(s: string): string | null {
   return null;
 }
 
+function jsonParseOrThrow(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch (e) {
+    const detail = e instanceof SyntaxError ? e.message : 'parse failed';
+    throw new Error(`invalid JSON (${detail})`);
+  }
+}
+
 /**
  * Parse JSON that may be double-encoded (e.g. Coolify / Docker env UIs that store a JSON string).
  * First parse can yield a string whose content is the actual JSON array.
@@ -56,9 +83,9 @@ function unwrapJsonStringLayers(s: string): unknown {
   let parsed: unknown;
   for (let depth = 0; depth < MAX_JSON_UNWRAP; depth++) {
     try {
-      parsed = JSON.parse(s);
-    } catch {
-      throw new Error('invalid JSON');
+      parsed = jsonParseOrThrow(s);
+    } catch (e) {
+      throw e instanceof Error ? e : new Error('invalid JSON');
     }
     if (typeof parsed !== 'string') return parsed;
     const inner = parsed.trim();
@@ -83,14 +110,15 @@ function parseJsonClientsPayload(raw: string): unknown {
   const b64 = tryDecodeBase64JsonPayload(base);
   if (b64 !== null) candidates.push(b64);
 
+  let lastErr: Error | undefined;
   for (const candidate of candidates) {
     try {
       return unwrapJsonStringLayers(candidate);
-    } catch {
-      /* try next */
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
     }
   }
-  throw new Error('invalid JSON');
+  throw lastErr ?? new Error('invalid JSON');
 }
 
 /**
@@ -100,7 +128,10 @@ export function parseOAuthClientsJson(raw: string): Map<string, string> {
   let parsed: unknown;
   try {
     parsed = parseJsonClientsPayload(raw);
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith('invalid JSON')) {
+      throw e;
+    }
     throw new Error('invalid JSON');
   }
   if (

@@ -25,6 +25,16 @@ describe('parseOAuthClientsJson', () => {
     ).toThrow(/duplicate client_id/);
   });
 
+  it('repairs trailing comma before closing bracket (invalid JSON)', () => {
+    const map = parseOAuthClientsJson('[{"client_id":"a","client_secret":"b",}]');
+    expect(map.get('a')).toBe('b');
+  });
+
+  it('includes JSON.parse diagnostic in error for malformed input', () => {
+    expect(() => parseOAuthClientsJson('not json')).toThrow(/invalid JSON/);
+    expect(() => parseOAuthClientsJson('not json')).toThrow(/JSON/);
+  });
+
   it('parses double-encoded JSON (env UIs that JSON-stringify the array)', () => {
     const inner = JSON.stringify([{ client_id: 'a', client_secret: 's1' }]);
     const asStoredBySomeHosts = JSON.stringify(inner);
