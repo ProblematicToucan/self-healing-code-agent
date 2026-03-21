@@ -59,10 +59,16 @@ describe('GET /reference', () => {
 });
 
 describe('GET /', () => {
-  it('returns hello JSON', async () => {
+  it('returns service metadata JSON', async () => {
     const res = await request(app).get('/');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: 'Hello from Express + TypeScript' });
+    expect(res.body).toEqual({
+      name: 'Self-Healing Code',
+      version: '1.0.0',
+      description: 'Self-healing API for automated error repair pipelines',
+      documentation: '/reference',
+      openapi: '/openapi.json',
+    });
   });
 });
 

@@ -77,7 +77,13 @@ const asyncHandler =
 app.get(
   '/',
   asyncHandler(async (_req: Request, res: Response) => {
-    res.json({ message: 'Hello from Express + TypeScript' });
+    res.json({
+      name: 'Self-Healing Code',
+      version: '1.0.0',
+      description: 'Self-healing API for automated error repair pipelines',
+      documentation: '/reference',
+      openapi: '/openapi.json',
+    });
   })
 );
 
