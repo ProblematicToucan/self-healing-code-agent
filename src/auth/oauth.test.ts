@@ -32,11 +32,9 @@ describe('parseOAuthClientsJson', () => {
 
   it('repairs JavaScript-style single-quoted keys (Coolify / env UIs)', () => {
     const map = parseOAuthClientsJson(
-      "[{'client_id':'pixel','client_secret':'c25bdbd80fa958d42afebeafa64c74582d93deae6f10be349a645d1535523357'}]"
+      "[{'client_id':'test-m2m-client','client_secret':'fake-secret-not-for-production'}]"
     );
-    expect(map.get('pixel')).toBe(
-      'c25bdbd80fa958d42afebeafa64c74582d93deae6f10be349a645d1535523357'
-    );
+    expect(map.get('test-m2m-client')).toBe('fake-secret-not-for-production');
   });
 
   it('includes JSON.parse diagnostic in error for malformed input', () => {
