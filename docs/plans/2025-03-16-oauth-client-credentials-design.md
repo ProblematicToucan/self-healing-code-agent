@@ -17,8 +17,10 @@ This service acts as **Authorization Server** (issues tokens) and **Resource Ser
 - **Public routes (no Bearer):**
   - `GET /`
   - `GET /health`
+  - `GET /openapi.json`
+  - `GET /reference`
   - `POST /oauth/token` (token issuance)
-- **Protected routes (Bearer required when OAuth is enabled):** all others, including `GET /queue`, `POST /queue/trigger`, `POST /error`, `GET /workspace`, `POST /workspace/cleanup`.
+- **Protected routes (Bearer required when OAuth is enabled):** all routes not listed above, including `GET /queue`, `POST /queue/trigger`, `POST /error`, `GET /workspace`, `POST /workspace/cleanup`.
 
 ## Activation
 
