@@ -153,7 +153,7 @@ src/
 ├── middleware/requireBearerAuth.ts
 ├── queue/db.ts       # SQLite queue (enqueue, claimNext, setStatus, listQueueJobs, getQueueStats)
 ├── schemas/errorReport.ts
-├── types/express.d.ts
+├── types/express-augment.ts  # merges oauthClientId onto Express Request (imported by middleware)
 └── utils/
     ├── errorHandler.ts   # Pipeline (clone, agent steps) & handleError
     ├── fingerprint.ts    # Deduplication fingerprint (message + stack + source + branch)
