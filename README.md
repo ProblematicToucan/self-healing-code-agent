@@ -11,6 +11,7 @@ An Express + TypeScript API that accepts error reports and runs an automated sel
 - **Self-healing pipeline** — For each job: clone repo → install deps → investigate → fix → commit & push → open PR (via Cursor agent CLI).
 - **Queue inspection** — `GET /queue` lists jobs with stats and optional status filter. `POST /queue/trigger` manually kicks the worker.
 - **Workspace cleanup** — Auto-deletion of clone dirs older than 2 days (configurable). `GET /workspace` lists entries; `POST /workspace/cleanup` runs cleanup on demand (optional `retentionDays`, `dryRun`).
+- **OAuth 2.0 (optional)** — When `OAUTH_JWT_SECRET` and `OAUTH_CLIENTS` are set, other services use **client credentials** (`POST /oauth/token`) and send `Authorization: Bearer <token>` on all other routes. `GET /`, `GET /health`, and `POST /oauth/token` stay unauthenticated.
 
 ## Requirements
 
@@ -46,6 +47,7 @@ npm start
 |--------|-----------------|-----------------------------------------------|
 | GET    | `/`             | Health-style hello                            |
 | GET    | `/health`       | Health check (`{ status: "ok" }`)            |
+| POST   | `/oauth/token`  | Client credentials → access token (see below) |
 | POST   | `/error`        | Submit an error report                        |
 | GET    | `/queue`        | Queue stats + list jobs (`?limit=50&status=pending`) |
 | POST   | `/queue/trigger`| Manually trigger worker to process next job   |
@@ -83,6 +85,28 @@ Kicks the worker loop immediately (useful when queue has pending work but worker
 
 **Response:** `{ triggered: boolean, message: string, stats }`.
 
+### OAuth 2.0 (optional)
+
+If **both** `OAUTH_JWT_SECRET` and `OAUTH_CLIENTS` are set in the environment, the API requires a **Bearer access token** on every route **except** `GET /`, `GET /health`, and `POST /oauth/token`. If either variable is missing or empty, OAuth is **disabled** and all routes behave as before (open).
+
+**1. Obtain a token** — `POST /oauth/token` with JSON or `application/x-www-form-urlencoded`:
+
+```json
+{
+  "grant_type": "client_credentials",
+  "client_id": "your-client-id",
+  "client_secret": "your-client-secret"
+}
+```
+
+**Success (200):** `{ "access_token": "<jwt>", "token_type": "Bearer", "expires_in": 3600 }`
+
+**Errors:** `400` / `401` with `{ "error": "...", "error_description": "..." }` (RFC 6749-style).
+
+**2. Call the API** — `Authorization: Bearer <access_token>`
+
+If OAuth is **not** configured (both env vars unset), `POST /oauth/token` returns `503` with `error: temporarily_unavailable`.
+
 ## Environment Variables
 
 See [.env.example](.env.example) for all options. Key variables:
@@ -94,6 +118,8 @@ See [.env.example](.env.example) for all options. Key variables:
 For Docker/pipeline: `CURSOR_API_KEY`, `GIT_TOKEN`, `GIT_URL` (optional; custom Git host), and `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` / `GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL`.
 
 Workspace cleanup: `WORKSPACE_RETENTION_DAYS` (default `2`), `WORKSPACE_CLEANUP_INTERVAL_MS` (default `21600000` = 6 hours). Auto-cleanup runs 1 minute after startup, then every 6 hours.
+
+OAuth (optional): `OAUTH_JWT_SECRET` (≥ 32 characters), `OAUTH_CLIENTS` (JSON array of `{ "client_id", "client_secret" }`), optional `OAUTH_ACCESS_TOKEN_TTL_SECONDS` (default `3600`). **Do not** set only one of `OAUTH_JWT_SECRET` / `OAUTH_CLIENTS` — the process will fail to start with a clear error.
 
 ## Docker
 
@@ -123,8 +149,11 @@ The container includes Cursor agent CLI, Git, GitHub CLI (`gh`), and GitLab CLI 
 ```
 src/
 ├── index.ts          # Express app, routes, worker loop, /queue, /workspace endpoints
+├── auth/oauth.ts     # OAuth client credentials: JWT issue/verify, client map from env
+├── middleware/requireBearerAuth.ts
 ├── queue/db.ts       # SQLite queue (enqueue, claimNext, setStatus, listQueueJobs, getQueueStats)
 ├── schemas/errorReport.ts
+├── types/express.d.ts
 └── utils/
     ├── errorHandler.ts   # Pipeline (clone, agent steps) & handleError
     ├── fingerprint.ts    # Deduplication fingerprint (message + stack + source + branch)

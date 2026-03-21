@@ -2,6 +2,12 @@ import 'dotenv/config';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import {
+  assertOAuthConfigOrThrow,
+  isOAuthEnabled,
+  issueAccessToken,
+  verifyClientCredentials,
+} from './auth/oauth';
+import {
   claimNext,
   enqueue,
   getQueueStats,
@@ -9,10 +15,13 @@ import {
   reclaimAbandonedOnStartup,
   setStatus,
 } from './queue/db';
+import { requireBearerAuth } from './middleware/requireBearerAuth';
 import { errorReportSchema } from './schemas/errorReport';
 import { handleError, runPipeline } from './utils/errorHandler';
 import { logger } from './utils/logger';
 import { listWorkspaceEntries, runWorkspaceCleanup } from './utils/workspaceCleanup';
+
+assertOAuthConfigOrThrow();
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -20,6 +29,7 @@ const app = express();
 const port = process.env.PORT ?? 3000;
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 /** Log each request: method, path, status, duration, and client ip. */
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -39,6 +49,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+app.use(requireBearerAuth);
+
 const asyncHandler =
   (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction) => {
@@ -56,6 +68,51 @@ app.get(
   '/health',
   asyncHandler(async (_req: Request, res: Response) => {
     res.json({ status: 'ok' });
+  })
+);
+
+app.post(
+  '/oauth/token',
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!isOAuthEnabled()) {
+      res.status(503).json({
+        error: 'temporarily_unavailable',
+        error_description:
+          'OAuth client credentials are not configured on this server',
+      });
+      return;
+    }
+    const grantType = req.body?.grant_type;
+    if (grantType !== 'client_credentials') {
+      res.status(400).json({
+        error: 'unsupported_grant_type',
+        error_description: 'Only grant_type=client_credentials is supported',
+      });
+      return;
+    }
+    const clientId = req.body?.client_id;
+    const clientSecret = req.body?.client_secret;
+    if (
+      typeof clientId !== 'string' ||
+      typeof clientSecret !== 'string' ||
+      !clientId ||
+      !clientSecret
+    ) {
+      res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'client_id and client_secret are required',
+      });
+      return;
+    }
+    if (!verifyClientCredentials(clientId, clientSecret)) {
+      res.status(401).json({
+        error: 'invalid_client',
+        error_description: 'Client authentication failed',
+      });
+      return;
+    }
+    const token = await issueAccessToken(clientId);
+    res.status(200).json(token);
   })
 );
 
