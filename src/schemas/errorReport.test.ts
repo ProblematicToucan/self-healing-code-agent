@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { errorReportSchema } from './errorReport';
+import { errorReportSchema } from './errorReport.js';
 
 describe('errorReportSchema', () => {
   it('accepts valid report with required fields', () => {

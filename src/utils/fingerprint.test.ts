@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { errorReportFingerprint } from './fingerprint';
+import { errorReportFingerprint } from './fingerprint.js';
 
 describe('errorReportFingerprint', () => {
   it('returns a 64-char hex string (SHA-256)', () => {

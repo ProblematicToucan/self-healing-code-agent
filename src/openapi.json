@@ -1,0 +1,460 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Self-healing API",
+    "version": "1.0.0",
+    "description": "HTTP API for OAuth (optional), error reporting, job queue, and workspace utilities.\n\nWhen `OAUTH_JWT_SECRET` and `OAUTH_CLIENTS` are both set, routes that declare Bearer security require `Authorization: Bearer <access_token>`. Obtain a token with `POST /oauth/token` (client credentials). When OAuth env vars are unset, those routes accept requests without a Bearer token."
+  },
+  "servers": [{ "url": "/", "description": "Current host" }],
+  "tags": [
+    { "name": "meta", "description": "Service metadata" },
+    { "name": "oauth", "description": "OAuth 2.0 (optional)" },
+    { "name": "workspace", "description": "Workspace directories" },
+    { "name": "queue", "description": "Error job queue" },
+    { "name": "errors", "description": "Submit error reports" },
+    { "name": "documentation", "description": "OpenAPI document and interactive API reference" }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "tags": ["meta"],
+        "summary": "Root",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Service banner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Hello from Express + TypeScript" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["meta"],
+        "summary": "Health check",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "enum": ["ok"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": ["documentation"],
+        "summary": "OpenAPI document",
+        "description": "Returns this service's OpenAPI 3 specification as JSON (same document as this file when served).",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3 document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "OpenAPI 3.x root object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reference": {
+      "get": {
+        "tags": ["documentation"],
+        "summary": "Interactive API reference",
+        "description": "HTML page (Scalar API Reference) that loads the spec from `/openapi.json`.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Rendered API documentation",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "description": "HTML document that bootstraps the Scalar API Reference UI"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/oauth/token": {
+      "post": {
+        "tags": ["oauth"],
+        "summary": "OAuth 2.0 client credentials token",
+        "description": "Returns 503 if OAuth is not configured on the server.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["grant_type", "client_id", "client_secret"],
+                "properties": {
+                  "grant_type": {
+                    "type": "string",
+                    "enum": ["client_credentials"]
+                  },
+                  "client_id": { "type": "string" },
+                  "client_secret": { "type": "string" }
+                }
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": ["grant_type", "client_id", "client_secret"],
+                "properties": {
+                  "grant_type": {
+                    "type": "string",
+                    "enum": ["client_credentials"]
+                  },
+                  "client_id": { "type": "string" },
+                  "client_secret": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["access_token", "token_type", "expires_in"],
+                  "properties": {
+                    "access_token": { "type": "string" },
+                    "token_type": { "type": "string", "enum": ["Bearer"] },
+                    "expires_in": { "type": "integer", "description": "Seconds until expiry" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or unsupported grant",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OAuthError" }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid client",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OAuthError" }
+              }
+            }
+          },
+          "503": {
+            "description": "OAuth not configured",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OAuthError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspace": {
+      "get": {
+        "tags": ["workspace"],
+        "summary": "List workspace entries",
+        "responses": {
+          "200": {
+            "description": "Directory entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": { "type": "object", "additionalProperties": true }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/workspace/cleanup": {
+      "post": {
+        "tags": ["workspace"],
+        "summary": "Run workspace cleanup",
+        "parameters": [
+          {
+            "name": "retentionDays",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 365 },
+            "description": "Override retention (also falls back to WORKSPACE_RETENTION_DAYS)"
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["true", "1"] },
+            "description": "If set, do not delete; only report what would be removed"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cleanup result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "dryRun": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/queue": {
+      "get": {
+        "tags": ["queue"],
+        "summary": "Queue stats and recent jobs",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50, "maximum": 200 }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["pending", "processing", "done", "failed"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stats and jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stats": { "$ref": "#/components/schemas/QueueStats" },
+                    "finished": {
+                      "type": "boolean",
+                      "description": "True when pending and processing are both zero"
+                    },
+                    "jobs": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/QueueJobSummary" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/queue/trigger": {
+      "post": {
+        "tags": ["queue"],
+        "summary": "Trigger worker to process jobs",
+        "responses": {
+          "200": {
+            "description": "Whether a worker was started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": ["triggered", "message"],
+                      "properties": {
+                        "triggered": { "type": "boolean", "enum": [false] },
+                        "message": { "type": "string" }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": ["triggered", "message", "stats"],
+                      "properties": {
+                        "triggered": { "type": "boolean", "enum": [true] },
+                        "message": { "type": "string" },
+                        "stats": { "$ref": "#/components/schemas/QueueStats" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/error": {
+      "post": {
+        "tags": ["errors"],
+        "summary": "Submit error report (enqueue self-healing job)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ErrorReport" }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["accepted", "jobId"],
+                  "properties": {
+                    "accepted": { "type": "boolean", "enum": [true] },
+                    "jobId": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or business rule failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string" },
+                    "details": { "type": "object" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "From POST /oauth/token when OAuth is enabled"
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Missing or invalid Bearer token (when OAuth is enabled)",
+        "headers": {
+          "WWW-Authenticate": {
+            "description": "RFC 6750 Bearer challenge (`realm`, `error`, `error_description`)",
+            "schema": {
+              "type": "string",
+              "example": "Bearer realm=\"API\", error=\"invalid_token\", error_description=\"Access token is invalid or expired\""
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/OAuthError" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "OAuthError": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "error_description": { "type": "string" }
+        }
+      },
+      "QueueStats": {
+        "type": "object",
+        "properties": {
+          "pending": { "type": "integer" },
+          "processing": { "type": "integer" },
+          "done": { "type": "integer" },
+          "failed": { "type": "integer" },
+          "total": { "type": "integer" }
+        }
+      },
+      "QueueJobSummary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "status": { "type": "string" },
+          "source": { "type": "string", "nullable": true },
+          "created_at": { "type": "string" },
+          "started_at": { "type": "string", "nullable": true },
+          "updated_at": { "type": "string" }
+        }
+      },
+      "ErrorReport": {
+        "type": "object",
+        "required": ["message", "branch", "source"],
+        "properties": {
+          "message": { "type": "string", "minLength": 1 },
+          "stack": { "type": "string" },
+          "source": {
+            "type": "string",
+            "description": "Required for self-healing pipeline (non-empty when trimmed)"
+          },
+          "branch": { "type": "string", "minLength": 1 },
+          "timestamp": { "type": "string" },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }]
+}

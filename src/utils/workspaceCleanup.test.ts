@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { getWorkspaceRoot, listWorkspaceEntries, runWorkspaceCleanup } from './workspaceCleanup';
+import { getWorkspaceRoot, listWorkspaceEntries, runWorkspaceCleanup } from './workspaceCleanup.js';
 
 describe('workspaceCleanup', () => {
   let tmpDir: string;
