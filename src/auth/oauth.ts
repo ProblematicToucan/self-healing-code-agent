@@ -13,43 +13,22 @@ const clientsSchema = z.array(clientEntrySchema);
 
 const MAX_JSON_UNWRAP = 4;
 
-/** Copy-paste / editors sometimes use these instead of ASCII `"` in JSON. */
-function normalizeJsonQuotes(s: string): string {
-  return s.replace(/[\u201c\u201d\u201e\u201f\u00ab\u00bb]/g, '"');
-}
-
-/** Env UIs often use typographic apostrophes (U+2018/U+2019) instead of ASCII `'` for pseudo-JSON. */
-function normalizeApostropheDelimiters(s: string): string {
-  return s.replace(/[\u2018\u2019\u201a\u201b]/g, "'");
+/** Smart / typographic quotes → ASCII `"` or `'`. */
+function normalizeEnvQuotes(s: string): string {
+  return s
+    .replace(/[\u2018\u2019\u201a\u201b]/g, "'")
+    .replace(/[\u201c\u201d\u201e\u201f\u00ab\u00bb]/g, '"');
 }
 
 /**
- * Trim BOM/whitespace, normalize quotes, unwrap a single layer of `'...'` when the inner
- * content looks like JSON (common in env UIs).
+ * Docker / Coolify often inject JSON with escaped quotes: [{\"client_id\":\"x\",...}]
+ * (literal backslash + quote). JSON.parse rejects that; collapse to real ".
  */
-function normalizeOAuthClientsEnvString(raw: string): string {
-  let s = raw.trim();
-  if (s.startsWith('\ufeff')) s = s.slice(1);
-  if (s.includes('\0')) s = s.replace(/\0/g, '');
-  s = normalizeApostropheDelimiters(s);
-  s = normalizeJsonQuotes(s);
-  if (s.length >= 2 && s[0] === "'" && s[s.length - 1] === "'") {
-    const inner = s.slice(1, -1).trim();
-    if (inner.startsWith('[') || inner.startsWith('{') || inner.startsWith('"')) {
-      s = inner;
-    }
-  }
-  if (s.startsWith('[')) {
-    s = stripTrailingCommasBeforeClosingBrackets(s);
-  }
-  s = repairSingleQuotedJsonKeys(s);
-  return s;
+function collapseEscapedDoubleQuotes(s: string): string {
+  if (!s.includes('\\"')) return s;
+  return s.replace(/\\"/g, '"');
 }
 
-/**
- * Trailing commas are invalid JSON but common in hand-edited / generated env values.
- * Only strips commas immediately before a closing `}` or `]` at the end of the string (repeat).
- */
 function stripTrailingCommasBeforeClosingBrackets(s: string): string {
   let t = s.trim();
   for (let i = 0; i < 8; i++) {
@@ -60,25 +39,70 @@ function stripTrailingCommasBeforeClosingBrackets(s: string): string {
   return t;
 }
 
-/**
- * Coolify and some env UIs store JSON-like text with single-quoted keys/strings. That is not
- * valid JSON (`Expected property name or '}' in JSON at position 2` right after `[{`). When
- * there are no ASCII double quotes (real JSON strings), convert `'` → `"`.
- * Do not use single quotes inside client_id / client_secret values; use standard JSON instead.
- */
 function looksLikeSingleQuotedJsonKeys(s: string): boolean {
   const t = s.trim();
-  // After normalizeApostropheDelimiters only ASCII ' is needed; allow both for inner unwrap paths.
-  return /^\[\s*\{\s*['\u2018\u2019]/.test(t) || /^\{\s*['\u2018\u2019]/.test(t);
+  return /^\[\s*\{\s*'/.test(t) || /^\{\s*'/.test(t);
 }
 
+/** Pseudo-JSON with single-quoted keys (not valid JSON). */
 function repairSingleQuotedJsonKeys(s: string): string {
-  const hasAsciiSingle = s.includes("'");
-  const hasTypographicSingle = /[\u2018\u2019\u201a\u201b]/.test(s);
-  if ((!hasAsciiSingle && !hasTypographicSingle) || s.includes('"')) return s;
-  let t = hasTypographicSingle ? normalizeApostropheDelimiters(s) : s;
-  if (!looksLikeSingleQuotedJsonKeys(t)) return s;
+  if (!looksLikeSingleQuotedJsonKeys(s)) return s;
+  let t = s.replace(/[\u2018\u2019\u201a\u201b]/g, "'");
   return t.replace(/'/g, '"');
+}
+
+function normalizeOAuthClientsEnvString(raw: string): string {
+  let s = raw.trim();
+  if (s.startsWith('\ufeff')) s = s.slice(1);
+  if (s.includes('\0')) s = s.replace(/\0/g, '');
+  s = normalizeEnvQuotes(s);
+  if (s.length >= 2 && s[0] === "'" && s[s.length - 1] === "'") {
+    const inner = s.slice(1, -1).trim();
+    if (inner.startsWith('[') || inner.startsWith('{') || inner.startsWith('"')) {
+      s = inner;
+    }
+  }
+  if (s.startsWith('[')) {
+    s = stripTrailingCommasBeforeClosingBrackets(s);
+  }
+  return s;
+}
+
+function parseJsonDocument(s: string): unknown {
+  let lastErr: unknown;
+  const attempts: string[] = [s];
+  const collapsed = collapseEscapedDoubleQuotes(s);
+  if (collapsed !== s) attempts.push(collapsed);
+  const singleFixed = repairSingleQuotedJsonKeys(s);
+  if (singleFixed !== s) attempts.push(singleFixed);
+  const both = repairSingleQuotedJsonKeys(collapsed);
+  if (both !== collapsed && !attempts.includes(both)) attempts.push(both);
+
+  for (const t of attempts) {
+    try {
+      return JSON.parse(t);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  const detail = lastErr instanceof SyntaxError ? lastErr.message : 'parse failed';
+  throw new Error(`invalid JSON (${detail})`);
+}
+
+function unwrapJsonStringLayers(s: string): unknown {
+  for (let depth = 0; depth < MAX_JSON_UNWRAP; depth++) {
+    let parsed: unknown;
+    try {
+      parsed = parseJsonDocument(s);
+    } catch (e) {
+      throw e instanceof Error ? e : new Error('invalid JSON');
+    }
+    if (typeof parsed !== 'string') return parsed;
+    const inner = parsed.trim();
+    if (!inner.startsWith('[') && !inner.startsWith('{')) return parsed;
+    s = inner;
+  }
+  throw new Error('invalid JSON');
 }
 
 function tryDecodeBase64JsonPayload(s: string): string | null {
@@ -94,46 +118,8 @@ function tryDecodeBase64JsonPayload(s: string): string | null {
   return null;
 }
 
-function jsonParseOrThrow(s: string): unknown {
-  try {
-    return JSON.parse(s);
-  } catch (e1) {
-    const repaired = repairSingleQuotedJsonKeys(s);
-    if (repaired !== s) {
-      try {
-        return JSON.parse(repaired);
-      } catch {
-        /* fall through */
-      }
-    }
-    const detail = e1 instanceof SyntaxError ? e1.message : 'parse failed';
-    throw new Error(`invalid JSON (${detail})`);
-  }
-}
-
-/**
- * Parse JSON that may be double-encoded (e.g. Coolify / Docker env UIs that store a JSON string).
- * First parse can yield a string whose content is the actual JSON array.
- */
-function unwrapJsonStringLayers(s: string): unknown {
-  let parsed: unknown;
-  for (let depth = 0; depth < MAX_JSON_UNWRAP; depth++) {
-    try {
-      parsed = jsonParseOrThrow(s);
-    } catch (e) {
-      throw e instanceof Error ? e : new Error('invalid JSON');
-    }
-    if (typeof parsed !== 'string') return parsed;
-    const inner = parsed.trim();
-    if (!inner.startsWith('[') && !inner.startsWith('{')) return parsed;
-    s = inner;
-  }
-  throw new Error('invalid JSON');
-}
-
 function parseJsonClientsPayload(raw: string): unknown {
   const base = normalizeOAuthClientsEnvString(raw);
-
   const candidates: string[] = [base];
   if (base.includes('%')) {
     try {
@@ -203,16 +189,6 @@ export function isOAuthEnabled(): boolean {
   return validateOAuthConfigAtStartup().ok;
 }
 
-/** Safe diagnostic for startup errors (no secret substrings). */
-function oauthClientsParseHint(raw: string): string {
-  const t = raw.trim();
-  if (t.length === 0) return '';
-  const first = t[0];
-  const code = first.charCodeAt(0);
-  const looksJsonish = /^\s*[\[{"]/.test(t);
-  return ` — value length ${t.length}, first code point U+${code.toString(16).toUpperCase().padStart(4, '0')}, looksLikeJsonStart=${looksJsonish}`;
-}
-
 /**
  * Validates OAuth env when enabling is intended. If both unset → ok (OAuth off).
  * If partially set or invalid → not ok.
@@ -241,10 +217,9 @@ export function validateOAuthConfigAtStartup(): { ok: boolean; message?: string 
     }
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
-    const hint = oauthClientsParseHint(rawClients);
     return {
       ok: false,
-      message: `OAUTH_CLIENTS: ${detail}${hint}`,
+      message: `OAUTH_CLIENTS: ${detail}`,
     };
   }
   return { ok: true };
