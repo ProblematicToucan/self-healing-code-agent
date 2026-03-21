@@ -20,6 +20,8 @@ import { errorReportSchema } from './schemas/errorReport';
 import { handleError, runPipeline } from './utils/errorHandler';
 import { logger } from './utils/logger';
 import { listWorkspaceEntries, runWorkspaceCleanup } from './utils/workspaceCleanup';
+import openApiSpec from './openapi.json';
+import { scalarReferenceHtml } from './scalarReference';
 
 assertOAuthConfigOrThrow();
 
@@ -30,6 +32,21 @@ const port = process.env.PORT ?? 3000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+app.get('/openapi.json', (_req: Request, res: Response) => {
+  res.json(openApiSpec);
+});
+
+app.get('/reference', (_req: Request, res: Response) => {
+  res
+    .type('text/html')
+    .send(
+      scalarReferenceHtml({
+        specUrl: '/openapi.json',
+        pageTitle: 'Self-healing API',
+      })
+    );
+});
 
 /** Log each request: method, path, status, duration, and client ip. */
 app.use((req: Request, res: Response, next: NextFunction) => {

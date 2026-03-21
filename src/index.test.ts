@@ -38,6 +38,26 @@ afterEach(() => {
   closeDb();
 });
 
+describe('GET /openapi.json', () => {
+  it('returns OpenAPI document', async () => {
+    const res = await request(app).get('/openapi.json');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/json/);
+    expect(res.body.openapi).toBe('3.0.3');
+    expect(res.body.info?.title).toBe('Self-healing API');
+  });
+});
+
+describe('GET /reference', () => {
+  it('returns Scalar HTML shell', async () => {
+    const res = await request(app).get('/reference');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/html/);
+    expect(res.text).toContain('Scalar.createApiReference');
+    expect(res.text).toContain('/openapi.json');
+  });
+});
+
 describe('GET /', () => {
   it('returns hello JSON', async () => {
     const res = await request(app).get('/');
