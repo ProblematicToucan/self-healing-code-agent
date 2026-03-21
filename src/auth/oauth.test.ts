@@ -44,6 +44,15 @@ describe('parseOAuthClientsJson', () => {
     expect(map.get('svc')).toBe('fake');
   });
 
+  it('parses env-style escaped quotes (literal backslash before ")', () => {
+    const raw =
+      '[{\\"client_id\\":\\"svc\\",\\"client_secret\\":\\"00deadbeef00deadbeef00deadbeef00deadbeef00deadbeef00deadbeef00deadbeef00deadbeef\\"}]';
+    const map = parseOAuthClientsJson(raw);
+    expect(map.get('svc')).toBe(
+      '00deadbeef00deadbeef00deadbeef00deadbeef00deadbeef00deadbeef00deadbeef00deadbeef'
+    );
+  });
+
   it('includes JSON.parse diagnostic in error for malformed input', () => {
     expect(() => parseOAuthClientsJson('not json')).toThrow(/invalid JSON/);
     expect(() => parseOAuthClientsJson('not json')).toThrow(/JSON/);
