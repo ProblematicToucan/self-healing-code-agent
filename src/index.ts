@@ -1,4 +1,7 @@
 import 'dotenv/config';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import {
@@ -23,6 +26,17 @@ import { listWorkspaceEntries, runWorkspaceCleanup } from './utils/workspaceClea
 import openApiSpec from './openapi.json' with { type: 'json' };
 import { scalarReferenceHtml } from './scalarReference.js';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FAVICON_ICO_PATH = join(__dirname, 'favico.ico');
+let faviconIcoCache: Buffer | null = null;
+
+function getFaviconIco(): Buffer {
+  if (!faviconIcoCache) {
+    faviconIcoCache = readFileSync(FAVICON_ICO_PATH);
+  }
+  return faviconIcoCache;
+}
+
 assertOAuthConfigOrThrow();
 
 const POLL_INTERVAL_MS = 1500;
@@ -46,6 +60,10 @@ app.get('/reference', (_req: Request, res: Response) => {
         pageTitle: 'Self-healing API',
       })
     );
+});
+
+app.get('/favicon.ico', (_req: Request, res: Response) => {
+  res.type('image/x-icon').send(getFaviconIco());
 });
 
 /** Log each request: method, path, status, duration, and client ip. */

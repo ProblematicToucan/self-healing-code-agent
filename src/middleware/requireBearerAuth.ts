@@ -25,7 +25,8 @@ function isPublicOAuthRoute(req: Request): boolean {
     (req.path === '/' ||
       req.path === '/health' ||
       req.path === '/openapi.json' ||
-      req.path === '/reference')
+      req.path === '/reference' ||
+      req.path === '/favicon.ico')
   ) {
     return true;
   }
@@ -37,7 +38,8 @@ function isPublicOAuthRoute(req: Request): boolean {
 
 /**
  * When OAuth is enabled, requires a valid Bearer JWT for all routes except
- * `GET`/`HEAD /`, `GET`/`HEAD /health`, `GET`/`HEAD /openapi.json`, `GET`/`HEAD /reference`, and `POST /oauth/token`.
+ * `GET`/`HEAD /`, `GET`/`HEAD /health`, `GET`/`HEAD /openapi.json`, `GET`/`HEAD /reference`,
+ * `GET`/`HEAD /favicon.ico`, and `POST /oauth/token`.
  */
 export function requireBearerAuth(req: Request, res: Response, next: NextFunction): void {
   if (!isOAuthEnabled()) {
