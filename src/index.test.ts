@@ -55,6 +55,18 @@ describe('GET /reference', () => {
     expect(res.headers['content-type']).toMatch(/html/);
     expect(res.text).toContain('Scalar.createApiReference');
     expect(res.text).toContain('/openapi.json');
+    expect(res.text).toContain('rel="icon"');
+    expect(res.text).toContain('/favicon.ico');
+  });
+});
+
+describe('GET /favicon.ico', () => {
+  it('returns favicon bytes', async () => {
+    const res = await request(app).get('/favicon.ico');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/image\/x-icon/);
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect((res.body as Buffer).length).toBeGreaterThan(0);
   });
 });
 
