@@ -28,11 +28,22 @@ import { scalarReferenceHtml } from './scalarReference.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FAVICON_ICO_PATH = join(__dirname, 'favico.ico');
-let faviconIcoCache: Buffer | null = null;
+let faviconIcoCache: Buffer | null | undefined;
 
-function getFaviconIco(): Buffer {
-  if (!faviconIcoCache) {
+function getFaviconIco(): Buffer | null {
+  if (faviconIcoCache !== undefined) {
+    return faviconIcoCache;
+  }
+  try {
     faviconIcoCache = readFileSync(FAVICON_ICO_PATH);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
+      faviconIcoCache = null;
+      logger.warn('favicon not found', { path: FAVICON_ICO_PATH });
+      return null;
+    }
+    throw err;
   }
   return faviconIcoCache;
 }
@@ -63,7 +74,12 @@ app.get('/reference', (_req: Request, res: Response) => {
 });
 
 app.get('/favicon.ico', (_req: Request, res: Response) => {
-  res.type('image/x-icon').send(getFaviconIco());
+  const icon = getFaviconIco();
+  if (!icon) {
+    res.status(404).end();
+    return;
+  }
+  res.type('image/x-icon').send(icon);
 });
 
 /** Log each request: method, path, status, duration, and client ip. */

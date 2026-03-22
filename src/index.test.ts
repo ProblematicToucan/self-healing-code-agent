@@ -65,8 +65,8 @@ describe('GET /favicon.ico', () => {
     const res = await request(app).get('/favicon.ico');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/image\/x-icon/);
-    const len = Buffer.isBuffer(res.body) ? res.body.length : Buffer.byteLength(String(res.body));
-    expect(len).toBeGreaterThan(0);
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect((res.body as Buffer).length).toBeGreaterThan(0);
   });
 });
 
