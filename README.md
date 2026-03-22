@@ -2,6 +2,8 @@
 
 An Express + TypeScript API that accepts error reports and runs an automated self-healing pipeline. When you report an error with a source repository URL and branch, the service clones the repo, investigates the failure, applies fixes, and opens a pull request.
 
+![Self-healing API — Scalar OpenAPI reference UI](docs/screenshot.png)
+
 **Language support:** Currently supports **Node.js** codebases only. Python, Rust, and Go support coming soon.
 
 ## Features
