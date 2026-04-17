@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ErrorReport } from '../schemas/errorReport.js';
+import { logger } from './logger.js';
 
 const AGENT_CMD = 'agent';
 const WORKSPACE_DIR = 'workspace';
@@ -48,7 +49,7 @@ function cloneRepo(source: string, cloneDir: string, branch: string): boolean {
     timeout: CLONE_TIMEOUT_MS,
   });
   if (r.status !== 0) {
-    console.error('[pipeline] git clone failed:', r.stderr || r.stdout || r.error);
+    logger.error('[pipeline] git clone failed', { detail: r.stderr || r.stdout || r.error });
     return false;
   }
   return true;
@@ -108,7 +109,7 @@ function runAgentStep(cloneDir: string, step: keyof typeof STEP_PROMPTS): boolea
         : r.error != null
           ? `spawn failed: ${r.error.message}`
           : `exit code ${r.status}`;
-    console.error(`[pipeline] Agent step "${step}" failed: ${detail}`);
+    logger.error(`[pipeline] Agent step "${step}" failed`, { detail });
     return false;
   }
   return true;
@@ -123,7 +124,7 @@ function runAgentStep(cloneDir: string, step: keyof typeof STEP_PROMPTS): boolea
 export async function runPipeline(report: ErrorReport): Promise<void> {
   const source = report.source;
   if (!source?.trim()) {
-    console.error('[pipeline] source is required');
+    logger.error('[pipeline] source is required');
     throw new Error('source is required');
   }
 
@@ -147,7 +148,7 @@ export async function runPipeline(report: ErrorReport): Promise<void> {
 
 /** Log error, write error.log at project root, and optionally run a single agent from project root. Not used for pipeline (no clone). */
 export function handleError(error: Error): void {
-  console.error(error);
+  logger.error(error.message, { stack: error.stack });
   const content = [error.message, error.stack].filter(Boolean).join('\n\n');
   writeFileSync(path.join(process.cwd(), 'error.log'), content);
   // No pipeline: no clone, no multi-step agent (middleware / callers without ErrorReport.source).

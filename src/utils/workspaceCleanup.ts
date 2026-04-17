@@ -43,6 +43,7 @@ export function listWorkspaceEntries(): WorkspaceEntry[] {
     logger.error('workspace list failed: readdir', {
       root,
       error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
     });
     throw err;
   }
@@ -75,17 +76,26 @@ export function runWorkspaceCleanup(retentionDays: number, dryRun: boolean): str
             rmSync(fullPath, { recursive: true });
             deleted.push(name);
           } catch (err) {
-            console.error('[workspace-cleanup] failed to delete', fullPath, err);
+            logger.error('[workspace-cleanup] failed to delete', {
+              path: fullPath,
+              error: err instanceof Error ? err.message : String(err),
+              stack: err instanceof Error ? err.stack : undefined,
+            });
           }
         }
       } catch (err) {
-        console.error('[workspace-cleanup] stat failed for', fullPath, err);
+        logger.error('[workspace-cleanup] stat failed', {
+          path: fullPath,
+          error: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+        });
       }
     }
   } catch (err) {
     logger.error('workspace cleanup failed: readdir', {
       root,
       error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
     });
     throw err;
   }
