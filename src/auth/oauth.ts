@@ -232,8 +232,14 @@ export function assertOAuthConfigOrThrow(): void {
   }
 }
 
+let cachedJwtSecret: Uint8Array | undefined;
+const encoder = new TextEncoder();
+
 function getJwtSecretBytes(): Uint8Array {
-  return new TextEncoder().encode(process.env.OAUTH_JWT_SECRET!.trim());
+  if (!cachedJwtSecret) {
+    cachedJwtSecret = encoder.encode(process.env.OAUTH_JWT_SECRET!.trim());
+  }
+  return cachedJwtSecret;
 }
 
 export function getDefaultAccessTokenTtlSeconds(): number {
