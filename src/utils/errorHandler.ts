@@ -40,10 +40,41 @@ function getCloneDir(source: string): string {
   return path.join(workspaceRoot, `${slug}-${timestamp}`);
 }
 
+/** Validate git source URL to prevent option injection and local file reads. */
+function isValidGitUrl(source: string): boolean {
+  if (source.startsWith('-')) {
+    return false;
+  }
+  // Allow http(s), git, ssh protocols
+  if (/^(https?|git|ssh):\/\//.test(source)) {
+    return true;
+  }
+  // Allow SCP-like syntax: [user@]host:path/to/repo.git
+  // To avoid confusion with Windows paths and ensure it is a remote repo:
+  // - Must not contain backslashes
+  // - Must contain exactly one colon
+  if (source.includes('\\')) {
+    return false;
+  }
+  const colonParts = source.split(':');
+  if (colonParts.length === 2) {
+    const [before, after] = colonParts;
+    // Basic check for [user@]host before colon and non-empty path after
+    if (/^([^@\s]+@)?[^@\s/]+$/.test(before) && after.length > 0 && !after.startsWith('/')) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Run git clone for the given branch. On failure (e.g. branch missing) log and return false. */
 function cloneRepo(source: string, cloneDir: string, branch: string): boolean {
+  if (!isValidGitUrl(source)) {
+    console.error(`[pipeline] invalid git source: ${source}`);
+    return false;
+  }
   mkdirSync(path.dirname(cloneDir), { recursive: true });
-  const args = ['clone', '-b', branch.trim(), source, cloneDir];
+  const args = ['clone', '-b', branch.trim(), '--', source, cloneDir];
   const r = spawnSync('git', args, {
     encoding: 'utf8',
     timeout: CLONE_TIMEOUT_MS,
