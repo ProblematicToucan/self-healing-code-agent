@@ -75,4 +75,14 @@ describe('errorHandler security', () => {
       expect.anything()
     );
   });
+
+  it('blocks branch starting with hyphen (option injection)', async () => {
+    const report = { ...mockReport, branch: '--upload-pack=touch /tmp/pwned' };
+    await expect(runPipeline(report)).rejects.toThrow('git clone failed');
+    expect(spawnSync).not.toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['clone', '-b', expect.stringMatching(/^-/)]),
+      expect.anything()
+    );
+  });
 });
