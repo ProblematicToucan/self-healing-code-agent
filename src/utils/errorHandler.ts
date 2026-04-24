@@ -75,12 +75,17 @@ function isValidGitUrl(source: string): boolean {
 
 /** Run git clone for the given branch. On failure (e.g. branch missing) log and return false. */
 function cloneRepo(source: string, cloneDir: string, branch: string): boolean {
+  const trimmedBranch = branch.trim();
+  if (trimmedBranch.startsWith('-')) {
+    console.error(`[pipeline] invalid git branch: ${trimmedBranch}`);
+    return false;
+  }
   if (!isValidGitUrl(source)) {
     console.error(`[pipeline] invalid git source: ${source}`);
     return false;
   }
   mkdirSync(path.dirname(cloneDir), { recursive: true });
-  const args = ['clone', '-b', branch.trim(), '--', source, cloneDir];
+  const args = ['clone', '-b', trimmedBranch, '--', source, cloneDir];
   const r = spawnSync('git', args, {
     encoding: 'utf8',
     timeout: CLONE_TIMEOUT_MS,
