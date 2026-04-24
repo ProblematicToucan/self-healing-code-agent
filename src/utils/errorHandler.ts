@@ -21,15 +21,21 @@ const STEP_PROMPTS = {
 
 /** Derive a fs-safe slug from source URL/path (e.g. last path segment, sanitized). */
 function sourceToSlug(source: string): string {
+  let base: string;
   try {
     const url = new URL(source);
     const segments = url.pathname.replace(/^\/+|\/+$/g, '').split('/');
-    const last = segments[segments.length - 1] || 'repo';
-    return last.replace(/[^a-zA-Z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'repo';
+    base = segments[segments.length - 1] || 'repo';
   } catch {
-    const sanitized = source.replace(/[^a-zA-Z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-    return sanitized || 'repo';
+    base = source;
   }
+
+  return (
+    base
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || 'repo'
+  );
 }
 
 /** Resolve workspace root and clone dir: workspace/<slug>-<timestamp>. */
