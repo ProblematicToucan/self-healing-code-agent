@@ -245,7 +245,7 @@ function getValidatedWorkspaceCleanupConfig(): {
 app.get(
   '/workspace',
   asyncHandler(async (_req: Request, res: Response) => {
-    const entries = listWorkspaceEntries();
+    const entries = await listWorkspaceEntries();
     res.json({ entries });
   })
 );
@@ -268,7 +268,7 @@ app.post(
       Math.min(MAX_RETENTION_DAYS, raw)
     );
     const dryRun = req.query.dryRun === 'true' || req.query.dryRun === '1';
-    const deleted = runWorkspaceCleanup(retentionDays, dryRun);
+    const deleted = await runWorkspaceCleanup(retentionDays, dryRun);
     res.json({ deleted, dryRun });
   })
 );
@@ -392,9 +392,9 @@ function stopWorker(): void {
 function startWorkspaceCleanupSchedule(): void {
   const { retentionDays, intervalMs } = getValidatedWorkspaceCleanupConfig();
 
-  function runCleanup(): void {
+  async function runCleanup(): Promise<void> {
     try {
-      const deleted = runWorkspaceCleanup(retentionDays, false);
+      const deleted = await runWorkspaceCleanup(retentionDays, false);
       if (deleted.length > 0) {
         logger.info('workspace cleanup ran', { deletedCount: deleted.length, deleted });
       }
