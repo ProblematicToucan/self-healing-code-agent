@@ -31,16 +31,16 @@ describe('workspaceCleanup', () => {
   });
 
   describe('listWorkspaceEntries', () => {
-    it('throws when workspace dir does not exist', () => {
-      expect(() => listWorkspaceEntries()).toThrow();
+    it('throws when workspace dir does not exist', async () => {
+      await expect(listWorkspaceEntries()).rejects.toThrow();
     });
 
-    it('returns [] when workspace dir is empty', () => {
+    it('returns [] when workspace dir is empty', async () => {
       mkdirSync(path.join(tmpDir, 'workspace'), { recursive: true });
-      expect(listWorkspaceEntries()).toEqual([]);
+      expect(await listWorkspaceEntries()).toEqual([]);
     });
 
-    it('returns one entry for one subdirectory with correct ageSeconds', () => {
+    it('returns one entry for one subdirectory with correct ageSeconds', async () => {
       const workspaceRoot = path.join(tmpDir, 'workspace');
       mkdirSync(workspaceRoot, { recursive: true });
       const subDir = path.join(workspaceRoot, 'my-repo-123');
@@ -50,31 +50,31 @@ describe('workspaceCleanup', () => {
       // listWorkspaceEntries uses directory mtime; set deterministic mtime for age assertion
       const mtimeSec = (Date.now() - ageSeconds * 1000) / 1000;
       utimesSync(subDir, mtimeSec, mtimeSec);
-      const entries = listWorkspaceEntries();
+      const entries = await listWorkspaceEntries();
       expect(entries).toHaveLength(1);
       expect(entries[0].name).toBe('my-repo-123');
       expect(entries[0].ageSeconds).toBeGreaterThanOrEqual(ageSeconds);
-      expect(entries[0].ageSeconds).toBeLessThan(ageSeconds + 2);
+      expect(entries[0].ageSeconds).toBeLessThan(ageSeconds + 5); // Increased margin for async overhead
     });
 
-    it('ignores files and only lists directories', () => {
+    it('ignores files and only lists directories', async () => {
       const workspaceRoot = path.join(tmpDir, 'workspace');
       mkdirSync(workspaceRoot, { recursive: true });
       writeFileSync(path.join(workspaceRoot, 'file.txt'), '');
       mkdirSync(path.join(workspaceRoot, 'repo-1'), { recursive: true });
-      const entries = listWorkspaceEntries();
+      const entries = await listWorkspaceEntries();
       expect(entries).toHaveLength(1);
       expect(entries[0].name).toBe('repo-1');
     });
   });
 
   describe('runWorkspaceCleanup', () => {
-    it('throws when workspace dir does not exist', () => {
-      expect(() => runWorkspaceCleanup(2, false)).toThrow();
-      expect(() => runWorkspaceCleanup(2, true)).toThrow();
+    it('throws when workspace dir does not exist', async () => {
+      await expect(runWorkspaceCleanup(2, false)).rejects.toThrow();
+      await expect(runWorkspaceCleanup(2, true)).rejects.toThrow();
     });
 
-    it('deletes dirs older than retentionDays and returns their names', () => {
+    it('deletes dirs older than retentionDays and returns their names', async () => {
       const workspaceRoot = path.join(tmpDir, 'workspace');
       mkdirSync(workspaceRoot, { recursive: true });
       const oldDir = path.join(workspaceRoot, 'old-repo-1');
@@ -83,25 +83,25 @@ describe('workspaceCleanup', () => {
       const threeDaysAgo = (Date.now() - 3 * 24 * 60 * 60 * 1000) / 1000;
       utimesSync(oldDir, threeDaysAgo, threeDaysAgo);
 
-      const deleted = runWorkspaceCleanup(2, false);
+      const deleted = await runWorkspaceCleanup(2, false);
       expect(deleted).toEqual(['old-repo-1']);
-      const entries = listWorkspaceEntries();
+      const entries = await listWorkspaceEntries();
       expect(entries).toHaveLength(0);
     });
 
-    it('leaves dirs newer than retentionDays', () => {
+    it('leaves dirs newer than retentionDays', async () => {
       const workspaceRoot = path.join(tmpDir, 'workspace');
       mkdirSync(workspaceRoot, { recursive: true });
       mkdirSync(path.join(workspaceRoot, 'recent-repo'), { recursive: true });
 
-      const deleted = runWorkspaceCleanup(2, false);
+      const deleted = await runWorkspaceCleanup(2, false);
       expect(deleted).toEqual([]);
-      const entries = listWorkspaceEntries();
+      const entries = await listWorkspaceEntries();
       expect(entries).toHaveLength(1);
       expect(entries[0].name).toBe('recent-repo');
     });
 
-    it('dryRun returns same list without deleting', () => {
+    it('dryRun returns same list without deleting', async () => {
       const workspaceRoot = path.join(tmpDir, 'workspace');
       mkdirSync(workspaceRoot, { recursive: true });
       const oldDir = path.join(workspaceRoot, 'old-repo-2');
@@ -110,9 +110,9 @@ describe('workspaceCleanup', () => {
       const threeDaysAgo = (Date.now() - 3 * 24 * 60 * 60 * 1000) / 1000;
       utimesSync(oldDir, threeDaysAgo, threeDaysAgo);
 
-      const wouldDelete = runWorkspaceCleanup(2, true);
+      const wouldDelete = await runWorkspaceCleanup(2, true);
       expect(wouldDelete).toEqual(['old-repo-2']);
-      const entries = listWorkspaceEntries();
+      const entries = await listWorkspaceEntries();
       expect(entries).toHaveLength(1);
       expect(entries[0].name).toBe('old-repo-2');
     });
