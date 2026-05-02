@@ -23,6 +23,7 @@ import { errorReportSchema } from './schemas/errorReport.js';
 import { handleError, runPipeline } from './utils/errorHandler.js';
 import { logger } from './utils/logger.js';
 import { listWorkspaceEntries, runWorkspaceCleanup } from './utils/workspaceCleanup.js';
+import { getEnvInt } from './utils/config.js';
 import openApiSpec from './openapi.json' with { type: 'json' };
 import { scalarReferenceHtml } from './scalarReference.js';
 
@@ -187,57 +188,22 @@ function getValidatedWorkspaceCleanupConfig(): {
   retentionDays: number;
   intervalMs: number;
 } {
-  const rawRetention = process.env.WORKSPACE_RETENTION_DAYS;
-  let retentionDays =
-    rawRetention !== undefined && rawRetention !== ''
-      ? parseInt(process.env.WORKSPACE_RETENTION_DAYS ?? '', 10)
-      : DEFAULT_RETENTION_DAYS;
-  if (!Number.isFinite(retentionDays)) {
-    logger.warn('workspace cleanup config: WORKSPACE_RETENTION_DAYS invalid, using default', {
-      value: process.env.WORKSPACE_RETENTION_DAYS,
-      default: DEFAULT_RETENTION_DAYS,
-    });
-    retentionDays = DEFAULT_RETENTION_DAYS;
-  }
-  const clampedRetention = Math.max(
-    MIN_RETENTION_DAYS,
-    Math.min(MAX_RETENTION_DAYS, retentionDays)
-  );
-  if (clampedRetention !== retentionDays) {
-    logger.warn('workspace cleanup config: WORKSPACE_RETENTION_DAYS clamped to bounds', {
-      value: retentionDays,
-      clamped: clampedRetention,
-      min: MIN_RETENTION_DAYS,
-      max: MAX_RETENTION_DAYS,
-    });
-  }
-  retentionDays = clampedRetention;
+  const context = 'workspace cleanup config';
+  const retentionDays = getEnvInt('WORKSPACE_RETENTION_DAYS', DEFAULT_RETENTION_DAYS, {
+    min: MIN_RETENTION_DAYS,
+    max: MAX_RETENTION_DAYS,
+    context,
+  });
 
-  const rawInterval = process.env.WORKSPACE_CLEANUP_INTERVAL_MS;
-  let intervalMs =
-    rawInterval !== undefined && rawInterval !== ''
-      ? Math.floor(Number(process.env.WORKSPACE_CLEANUP_INTERVAL_MS)) // parseInt for large ms values can lose precision; floor(Number) is safe
-      : WORKSPACE_CLEANUP_INTERVAL_MS_DEFAULT;
-  if (!Number.isFinite(intervalMs)) {
-    logger.warn('workspace cleanup config: WORKSPACE_CLEANUP_INTERVAL_MS invalid, using default', {
-      value: process.env.WORKSPACE_CLEANUP_INTERVAL_MS,
-      default: WORKSPACE_CLEANUP_INTERVAL_MS_DEFAULT,
-    });
-    intervalMs = WORKSPACE_CLEANUP_INTERVAL_MS_DEFAULT;
-  }
-  const clampedInterval = Math.max(
-    MIN_INTERVAL_MS,
-    Math.min(MAX_INTERVAL_MS, intervalMs)
-  );
-  if (clampedInterval !== intervalMs) {
-    logger.warn('workspace cleanup config: WORKSPACE_CLEANUP_INTERVAL_MS clamped to bounds', {
-      value: intervalMs,
-      clamped: clampedInterval,
+  const intervalMs = getEnvInt(
+    'WORKSPACE_CLEANUP_INTERVAL_MS',
+    WORKSPACE_CLEANUP_INTERVAL_MS_DEFAULT,
+    {
       min: MIN_INTERVAL_MS,
       max: MAX_INTERVAL_MS,
-    });
-  }
-  intervalMs = clampedInterval;
+      context,
+    }
+  );
 
   return { retentionDays, intervalMs };
 }
@@ -253,20 +219,17 @@ app.get(
 app.post(
   '/workspace/cleanup',
   asyncHandler(async (req: Request, res: Response) => {
-    const { retentionDays: defaultRetention } = getValidatedWorkspaceCleanupConfig();
     const fromQuery = parseInt(String(req.query.retentionDays), 10);
-    const fromEnv =
-      process.env.WORKSPACE_RETENTION_DAYS !== undefined && process.env.WORKSPACE_RETENTION_DAYS !== ''
-        ? parseInt(process.env.WORKSPACE_RETENTION_DAYS, 10)
-        : NaN;
+    const fromEnv = getEnvInt('WORKSPACE_RETENTION_DAYS', NaN);
+    const { retentionDays: defaultRetention } = getValidatedWorkspaceCleanupConfig();
+
     const raw =
       (Number.isFinite(fromQuery) ? fromQuery : null) ??
       (Number.isFinite(fromEnv) ? fromEnv : null) ??
       defaultRetention;
-    const retentionDays = Math.max(
-      MIN_RETENTION_DAYS,
-      Math.min(MAX_RETENTION_DAYS, raw)
-    );
+
+    const retentionDays = Math.max(MIN_RETENTION_DAYS, Math.min(MAX_RETENTION_DAYS, raw));
+
     const dryRun = req.query.dryRun === 'true' || req.query.dryRun === '1';
     const deleted = await runWorkspaceCleanup(retentionDays, dryRun);
     res.json({ deleted, dryRun });

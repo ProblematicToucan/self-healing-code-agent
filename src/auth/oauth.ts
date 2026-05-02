@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { z } from 'zod';
+import { getEnvInt } from '../utils/config.js';
 
 const MIN_SECRET_LENGTH = 32;
 
@@ -243,11 +244,10 @@ function getJwtSecretBytes(): Uint8Array {
 }
 
 export function getDefaultAccessTokenTtlSeconds(): number {
-  const raw = process.env.OAUTH_ACCESS_TOKEN_TTL_SECONDS;
-  const n =
-    raw !== undefined && raw !== '' ? Math.floor(Number(raw)) : 3600;
-  if (!Number.isFinite(n)) return 3600;
-  return Math.max(60, Math.min(86400, n));
+  return getEnvInt('OAUTH_ACCESS_TOKEN_TTL_SECONDS', 3600, {
+    min: 60,
+    max: 86400,
+  });
 }
 
 /**
