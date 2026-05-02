@@ -182,12 +182,24 @@ export function parseOAuthClientsJson(raw: string): Map<string, string> {
 
 /**
  * Returns true when OAuth enforcement should apply: both env vars set and configuration is valid.
+ * If only one is set, or configuration is invalid, it throws to prevent accidental auth bypass.
  */
 export function isOAuthEnabled(): boolean {
   const rawSecret = process.env.OAUTH_JWT_SECRET?.trim() ?? '';
   const rawClients = process.env.OAUTH_CLIENTS?.trim() ?? '';
-  if (!rawSecret || !rawClients) return false;
-  return validateOAuthConfigAtStartup().ok;
+
+  // Both unset -> OAuth disabled (ok)
+  if (!rawSecret && !rawClients) {
+    return false;
+  }
+
+  // If we reach here, at least one is set. Validate.
+  const r = validateOAuthConfigAtStartup();
+  if (!r.ok) {
+    throw new Error(r.message ?? 'Invalid OAuth configuration');
+  }
+
+  return true;
 }
 
 /**
